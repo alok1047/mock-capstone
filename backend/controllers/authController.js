@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const generateToken = require('../utils/generateToken');
 
 // Signup API
 const signupUser = async (req, res) => {
@@ -20,8 +21,12 @@ const signupUser = async (req, res) => {
       password,
     });
 
+    const token = generateToken(user._id);
+
     res.status(201).json({
+      success: true,
       message: "Signup successful",
+      token,
       user: {
         _id: user._id,
         username: user.username,
@@ -54,8 +59,12 @@ const loginUser = async (req, res) => {
       return res.status(400).json({ message: "Invalid Credentials" });
     }
 
+    const token = generateToken(user._id);
+
     res.status(200).json({
+      success: true,
       message: "Login successful",
+      token,
       user: {
         _id: user._id,
         username: user.username,
