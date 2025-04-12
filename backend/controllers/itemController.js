@@ -10,10 +10,10 @@ const createItem = async (req, res) => {
       return res.status(400).json({ message: "All fields except image & category are required" });
     }
 
-    // Hardcoded user ID for now
-    const userId = new mongoose.Types.ObjectId("67f7cb020e8dc363cb664ec6");
+    // Use req.user._id instead of hardcoded user ID
+    const userId = req.user._id;
 
-    const item = await Item.create({
+    let item = await Item.create({
       name: name.trim(),
       description: description.trim(),
       location: location.trim(),
@@ -21,6 +21,9 @@ const createItem = async (req, res) => {
       category: category?.trim() || 'other',
       user: userId
     });
+    
+    // Populate the user field to include username
+    item = await Item.findById(item._id).populate('user', 'username');
 
     res.status(201).json({
       success: true,
@@ -37,7 +40,7 @@ const createItem = async (req, res) => {
 // Get All Items API
 const getAllItems = async (req, res) => {
   try {
-    const items = await Item.find();
+    const items = await Item.find().populate('user', 'username');
 
     res.status(200).json({
       success: true,
@@ -54,20 +57,29 @@ const getAllItems = async (req, res) => {
 // Update Item API
 const updateItem = async (req, res) => {
   try {
-    const item = await Item.findByIdAndUpdate(
+    // First find the item to check ownership
+    const item = await Item.findById(req.params.id);
+
+    if (!item) {
+      return res.status(404).json({ success: false, message: "Item not found" });
+    }
+
+    // Check if user is the owner of this item
+    if (item.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: "Not authorized to update this item" });
+    }
+
+    // Now update the item
+    const updatedItem = await Item.findByIdAndUpdate(
       req.params.id,
       req.body,
       { new: true, runValidators: true }
-    );
-
-    if (!item) {
-      return res.status(404).json({ message: "Item not found" });
-    }
+    ).populate('user', 'username');
 
     res.status(200).json({
       success: true,
       message: "Item updated successfully",
-      data: item
+      data: updatedItem
     });
 
   } catch (error) {
@@ -78,11 +90,20 @@ const updateItem = async (req, res) => {
 
 const deleteItem = async (req, res) => {
   try {
-    const item = await Item.findByIdAndDelete(req.params.id);
+    // First find the item to check ownership
+    const item = await Item.findById(req.params.id);
 
     if (!item) {
       return res.status(404).json({ success: false, message: "Item not found" });
     }
+
+    // Check if user is the owner of this item
+    if (item.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: "Not authorized to delete this item" });
+    }
+
+    // Now delete the item
+    await Item.findByIdAndDelete(req.params.id);
 
     res.status(200).json({ success: true, message: "Item deleted successfully" });
 
