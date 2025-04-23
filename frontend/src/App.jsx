@@ -1,16 +1,16 @@
 import React from 'react';
 import { BrowserRouter as Router } from 'react-router-dom';
-import Navbar from './components/Navbar';
 import AppRoutes from './routes/AppRoutes';
-import './App.css';
+import { AuthProvider } from './contexts/AuthContext';
 
-const App = () => (
-  <Router>
-    <Navbar />
-    <div className="pt-16"> {/* Add padding top to push content below fixed navbar */}
-      <AppRoutes />
-    </div>
-  </Router>
-);
+function App() {
+  return (
+    <AuthProvider>
+      <Router>
+        <AppRoutes />
+      </Router>
+    </AuthProvider>
+  );
+}
 
 export default App;
