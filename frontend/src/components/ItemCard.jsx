@@ -22,17 +22,24 @@ const CategoryIcon = () => (
   </svg>
 );
 
-const ItemCard = ({ 
-  id, 
-  title, 
-  image, 
-  location, 
-  date, 
-  category, 
-  type // 'lost' or 'found'
+const formatDistance = (m) => {
+  if (typeof m !== 'number' || !Number.isFinite(m)) return null;
+  if (m < 1000) return `${Math.max(1, Math.round(m))} m away`;
+  return `${(m / 1000).toFixed(m < 10000 ? 1 : 0)} km away`;
+};
+
+const ItemCard = ({
+  id,
+  title,
+  image,
+  location,
+  date,
+  category,
+  type, // 'lost' or 'found'
+  distance, // metres (optional)
 }) => {
-  // Format date if it's a valid date string
   const formattedDate = date ? new Date(date).toLocaleDateString() : date;
+  const distanceLabel = formatDistance(distance);
   
   return (
     <div className="group bg-white rounded-lg shadow-soft overflow-hidden border border-gray-100 h-full card-hover animate-fadeInUp">
@@ -47,6 +54,11 @@ const ItemCard = ({
         }`}>
           {type === 'lost' ? 'Lost' : 'Found'}
         </div>
+        {distanceLabel && (
+          <div className="absolute top-3 right-3 text-[11px] font-medium py-1 px-2 rounded-md bg-white/95 text-gray-800 shadow-sm backdrop-blur-sm">
+            {distanceLabel}
+          </div>
+        )}
       </div>
 
       <div className="p-4">
@@ -96,7 +108,8 @@ ItemCard.propTypes = {
   location: PropTypes.string,
   date: PropTypes.string,
   category: PropTypes.string,
-  type: PropTypes.oneOf(['lost', 'found']).isRequired
+  type: PropTypes.oneOf(['lost', 'found']).isRequired,
+  distance: PropTypes.number,
 };
 
 export default ItemCard;
