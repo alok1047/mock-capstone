@@ -1,5 +1,5 @@
 const User = require('../models/User');
-const generateToken = require('../utils/generatetoken');
+const generateToken = require('../utils/generateToken');
 
 // Signup API
 const signupUser = async (req, res) => {
@@ -96,9 +96,18 @@ const googleCallback = (req, res) => {
     // Generate JWT token
     const token = generateToken(user._id);
     
-    // Redirect to frontend with token and user information
-    // Use query parameters for the redirect
-    res.redirect(`${process.env.CLIENT_URL}/oauth-success?token=${token}&userId=${user._id}&username=${user.username}&email=${user.email}&authProvider=${user.authProvider}`);
+    // Redirect to frontend with token and user information.
+    // Avatar URLs from Google contain `=` and other reserved chars, so each
+    // value is URL-encoded.
+    const params = new URLSearchParams({
+      token,
+      userId: String(user._id),
+      username: user.username || '',
+      email: user.email || '',
+      authProvider: user.authProvider || '',
+      avatar: user.avatar || '',
+    });
+    res.redirect(`${process.env.CLIENT_URL}/oauth-success?${params.toString()}`);
     
   } catch (error) {
     console.error("Google auth error:", error);

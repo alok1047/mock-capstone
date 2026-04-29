@@ -70,18 +70,18 @@ const FoundItems = () => {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 animate-fadeInDown">
         <h1 className="text-3xl font-bold text-gray-800">Found Items</h1>
-        <Link 
-          to="/report-found" 
-          className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md font-medium transition duration-200 shadow-sm"
+        <Link
+          to="/report-found"
+          className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md font-medium transition-all duration-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]"
         >
           Report Found Item
         </Link>
       </div>
 
       {/* Search and Filter Bar */}
-      <div className="bg-white p-4 rounded-lg shadow-md mb-8">
+      <div className="bg-white p-4 rounded-lg shadow-soft mb-8 animate-fadeInUp">
         <div className="flex flex-col md:flex-row gap-4">
           {/* Search Input */}
           <div className="relative flex-grow">
@@ -150,17 +150,18 @@ const FoundItems = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredItems.map(item => (
-                <ItemCard
-                  key={item._id}
-                  id={item._id}
-                  title={item.name}
-                  image={item.image || `https://source.unsplash.com/random/300x200?${item.category}`}
-                  location={item.location}
-                  date={item.createdAt}
-                  category={item.category}
-                  type="found"
-                />
+              {filteredItems.map((item, idx) => (
+                <div key={item._id} style={{ animationDelay: `${idx * 60}ms` }}>
+                  <ItemCard
+                    id={item._id}
+                    title={item.name}
+                    image={item.image || `https://source.unsplash.com/random/300x200?${item.category}`}
+                    location={item.location}
+                    date={item.createdAt}
+                    category={item.category}
+                    type="found"
+                  />
+                </div>
               ))}
             </div>
           )}

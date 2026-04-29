@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import ItemCard from '../components/ItemCard';
+import EyeIcon from '../components/EyeIcon';
 import { getAllItems } from '../api/itemsApi';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -76,37 +77,64 @@ const Home = () => {
     <div className="space-y-16 md:space-y-24">
 
       {/* === Hero Section === */}
-      <section className="text-center pt-12 md:pt-20">
-        <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-brand-blue mb-4 leading-tight">
-          Even Lost, <span className="text-gray-800">I Found</span>
-        </h1>
-        <p className="text-lg text-gray-600 max-w-xl mx-auto mb-8">
-          The community platform that connects people who have lost items with those who have found them.
-        </p>
-        {/* Hero Buttons */}
-        <div className="flex flex-col sm:flex-row justify-center items-center space-y-3 sm:space-y-0 sm:space-x-4">
-           <Link
-             to="/report-item"
-             className="inline-flex items-center justify-center bg-brand-blue hover:bg-brand-blue-dark text-white px-6 py-3 rounded-md font-semibold transition duration-200 shadow-sm w-full sm:w-auto"
-             onClick={handleReportItemClick}
-           >
-             <ReportIconSmall /> Report an Item
-           </Link>
-           <Link
-             to="/search-items"
-             className="inline-flex items-center justify-center bg-white hover:bg-gray-50 text-gray-700 px-6 py-3 rounded-md font-semibold transition duration-200 border border-gray-300 shadow-sm w-full sm:w-auto"
-           >
-              <SearchIconSmall /> Search Lost Items
-           </Link>
+      <section className="relative pt-12 md:pt-20 pb-12 md:pb-20 overflow-hidden">
+        {/* Soft ambient blobs (kept from original design) */}
+        <div className="pointer-events-none absolute inset-0 -z-10">
+          <div className="absolute top-8 -left-12 h-72 w-72 rounded-full bg-brand-blue/10 blur-3xl animate-float" />
+          <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-brand-teal/10 blur-3xl animate-float [animation-delay:1.5s]" />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 lg:gap-14 items-center">
+          {/* === Left: text & buttons (unchanged content) === */}
+          <div className="text-center md:text-left order-2 md:order-1">
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold mb-4 leading-tight animate-fadeInUp">
+              <span className="gradient-text">Even Lost,</span>{' '}
+              <span className="text-gray-800">I Found</span>
+            </h1>
+            <p className="text-lg text-gray-600 max-w-xl mx-auto md:mx-0 mb-8 animate-fadeInUp animation-delay-100">
+              The community platform that connects people who have lost items with those who have found them.
+            </p>
+            <div className="flex flex-col sm:flex-row justify-center md:justify-start items-center space-y-3 sm:space-y-0 sm:space-x-4 animate-fadeInUp animation-delay-200">
+              <Link
+                to="/report-item"
+                className="inline-flex items-center justify-center bg-brand-blue hover:bg-brand-blue-dark text-white px-6 py-3 rounded-md font-semibold transition-all duration-200 shadow-sm hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] w-full sm:w-auto"
+                onClick={handleReportItemClick}
+              >
+                <ReportIconSmall /> Report an Item
+              </Link>
+              <Link
+                to="/search-items"
+                className="inline-flex items-center justify-center bg-white hover:bg-gray-50 text-gray-700 px-6 py-3 rounded-md font-semibold transition-all duration-200 border border-gray-300 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] w-full sm:w-auto"
+              >
+                <SearchIconSmall /> Search Lost Items
+              </Link>
+            </div>
+          </div>
+
+          {/* === Right: hero video ===
+              The wrapper is painted bg-brand-bg so the video's near-white
+              backdrop multiplies against a flat page-coloured surface — no
+              gradient blobs bleed through, no visible square edge. */}
+          <div className="order-1 md:order-2 w-full max-w-md mx-auto md:max-w-none animate-fadeIn animation-delay-100 bg-brand-bg">
+            <video
+              src="/video.mp4"
+              autoPlay
+              loop
+              muted
+              playsInline
+              preload="auto"
+              aria-hidden="true"
+              className="w-full h-auto object-contain select-none pointer-events-none [mix-blend-mode:multiply]"
+            />
+          </div>
         </div>
       </section>
 
       {/* === Features Section === */}
       <section>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {/* Feature Card 1: Report */}
-          <div className="bg-white p-8 rounded-lg shadow-md text-center">
-            <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-amber-500 mb-6">
+          <div className="group bg-white p-8 rounded-lg shadow-soft text-center card-hover animate-fadeInUp animation-delay-100">
+            <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-amber-500 mb-6 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6">
               <ReportIcon />
             </div>
             <h3 className="text-xl font-semibold text-gray-800 mb-2">Report Lost Items</h3>
@@ -115,10 +143,9 @@ const Home = () => {
             </p>
           </div>
 
-          {/* Feature Card 2: Find */}
-          <div className="bg-white p-8 rounded-lg shadow-md text-center">
-             <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-green-500 mb-6">
-              <SearchIcon />
+          <div className="group bg-white p-8 rounded-lg shadow-soft text-center card-hover animate-fadeInUp animation-delay-200">
+             <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-green-500 mb-6 transition-transform duration-300 group-hover:scale-110">
+              <EyeIcon className="h-9 w-9" />
             </div>
             <h3 className="text-xl font-semibold text-gray-800 mb-2">Find Items</h3>
             <p className="text-gray-600">
@@ -126,9 +153,8 @@ const Home = () => {
             </p>
           </div>
 
-          {/* Feature Card 3: Verify */}
-          <div className="bg-white p-8 rounded-lg shadow-md text-center">
-             <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-brand-blue mb-6">
+          <div className="group bg-white p-8 rounded-lg shadow-soft text-center card-hover animate-fadeInUp animation-delay-300">
+             <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-brand-blue mb-6 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6">
               <VerifyIcon />
             </div>
             <h3 className="text-xl font-semibold text-gray-800 mb-2">Verification System</h3>
@@ -140,19 +166,19 @@ const Home = () => {
       </section>
 
       {/* === Recent Items Section === */}
-      <section>
+      <section className="animate-fadeIn animation-delay-200">
         <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
           <h2 className="text-2xl font-semibold text-gray-800">Recent Items</h2>
           <div className="flex space-x-3">
             <Link
               to="/lost-items"
-              className="bg-white hover:bg-gray-50 text-amber-600 px-4 py-2 rounded-md font-medium text-sm transition duration-200 border border-amber-400 shadow-sm"
+              className="bg-white hover:bg-amber-50 text-amber-600 px-4 py-2 rounded-md font-medium text-sm transition-all duration-200 border border-amber-400 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0"
             >
               View Lost Items
             </Link>
             <Link
               to="/found-items"
-              className="bg-white hover:bg-gray-50 text-green-600 px-4 py-2 rounded-md font-medium text-sm transition duration-200 border border-green-400 shadow-sm"
+              className="bg-white hover:bg-green-50 text-green-600 px-4 py-2 rounded-md font-medium text-sm transition-all duration-200 border border-green-400 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0"
             >
               View Found Items
             </Link>
@@ -196,22 +222,25 @@ const Home = () => {
           </div>
         )}
         
-        {/* Item grid - Success state */}
         {!loading && !error && items.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {items.map(item => (
-              <ItemCard key={item._id || item.id} {...item} />
+            {items.map((item, idx) => (
+              <div
+                key={item._id || item.id}
+                style={{ animationDelay: `${idx * 80}ms` }}
+              >
+                <ItemCard {...item} />
+              </div>
             ))}
           </div>
         )}
       </section>
 
-      {/* Bottom CTA */}
-      <section className="text-center py-8">
+      <section className="text-center py-8 animate-fadeIn">
         <p className="text-lg mb-4">Lost something? Report it and we'll help you find it!</p>
         <Link
           to="/report-item"
-          className="inline-flex items-center justify-center bg-brand-blue hover:bg-brand-blue-dark text-white px-6 py-3 rounded-md font-semibold transition duration-200 shadow-sm"
+          className="inline-flex items-center justify-center bg-brand-blue hover:bg-brand-blue-dark text-white px-6 py-3 rounded-md font-semibold transition-all duration-200 shadow-sm hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]"
           onClick={handleReportItemClick}
         >
           Report an Item
@@ -220,11 +249,10 @@ const Home = () => {
 
       {/* === How It Works Section === */}
       <section className="py-12">
-        <h2 className="text-3xl font-bold text-center mb-12 text-gray-800">How It Works</h2>
+        <h2 className="text-3xl font-bold text-center mb-12 text-gray-800 animate-fadeInUp">How It Works</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {/* Step 1 */}
-          <div className="text-center">
-            <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-brand-blue text-white text-2xl font-bold mb-6">
+          <div className="group text-center animate-fadeInUp animation-delay-100">
+            <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-brand-blue text-white text-2xl font-bold mb-6 shadow-md transition-transform duration-300 group-hover:scale-110">
               1
             </div>
             <h3 className="text-xl font-semibold text-gray-800 mb-2">Report</h3>
@@ -232,10 +260,9 @@ const Home = () => {
               Report your lost item or something you've found with details, photos, and location.
             </p>
           </div>
-          
-          {/* Step 2 */}
-          <div className="text-center">
-            <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-brand-blue text-white text-2xl font-bold mb-6">
+
+          <div className="group text-center animate-fadeInUp animation-delay-200">
+            <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-brand-blue text-white text-2xl font-bold mb-6 shadow-md transition-transform duration-300 group-hover:scale-110">
               2
             </div>
             <h3 className="text-xl font-semibold text-gray-800 mb-2">Connect</h3>
@@ -243,10 +270,9 @@ const Home = () => {
               Our system matches lost items with found reports and connects the users securely.
             </p>
           </div>
-          
-          {/* Step 3 */}
-          <div className="text-center">
-            <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-brand-blue text-white text-2xl font-bold mb-6">
+
+          <div className="group text-center animate-fadeInUp animation-delay-300">
+            <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-brand-blue text-white text-2xl font-bold mb-6 shadow-md transition-transform duration-300 group-hover:scale-110">
               3
             </div>
             <h3 className="text-xl font-semibold text-gray-800 mb-2">Recover</h3>

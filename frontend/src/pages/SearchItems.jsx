@@ -128,8 +128,8 @@ const SearchItems = () => {
   
   return (
     <div className="space-y-8">
-      <div className="bg-white p-6 rounded-lg shadow-md">
-        <h1 className="text-2xl font-bold text-gray-800 mb-6">Search Lost & Found Items</h1>
+      <div className="bg-white p-6 rounded-lg shadow-soft animate-fadeInDown">
+        <h1 className="text-2xl font-bold text-gray-800 mb-6">Search Lost &amp; Found Items</h1>
         
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Search term input */}
@@ -196,23 +196,23 @@ const SearchItems = () => {
           <div className="flex space-x-3">
             <button
               type="submit"
-              className="px-4 py-2 bg-brand-blue text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue"
+              className="px-4 py-2 bg-brand-blue text-white rounded-md hover:bg-brand-blue-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue transition-all duration-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]"
             >
               Search
             </button>
             <button
               type="button"
               onClick={handleClear}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-200 active:scale-[0.98]"
             >
               Clear Filters
             </button>
           </div>
         </form>
       </div>
-      
+
       {/* Results section */}
-      <div className="bg-white p-6 rounded-lg shadow-md">
+      <div className="bg-white p-6 rounded-lg shadow-soft animate-fadeInUp animation-delay-100">
         {/* Results header */}
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold text-gray-800">

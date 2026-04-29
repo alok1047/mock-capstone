@@ -35,25 +35,25 @@ const ItemCard = ({
   const formattedDate = date ? new Date(date).toLocaleDateString() : date;
   
   return (
-    <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-100 h-full">
-      {/* Item Status Badge */}
-      <div className="relative">
-        <img 
-          src={image || "https://via.placeholder.com/300x200?text=No+Image"} 
-          alt={title} 
-          className="w-full h-48 object-cover"
+    <div className="group bg-white rounded-lg shadow-soft overflow-hidden border border-gray-100 h-full card-hover animate-fadeInUp">
+      <div className="relative overflow-hidden">
+        <img
+          src={image || "https://via.placeholder.com/300x200?text=No+Image"}
+          alt={title}
+          className="w-full h-48 object-cover transition-transform duration-500 ease-out group-hover:scale-105"
         />
-        <div className={`absolute top-3 left-3 text-xs font-bold py-1 px-2 rounded-md ${
-          type === 'lost' ? 'bg-red-500 text-white' : 'bg-green-500 text-white'
+        <div className={`absolute top-3 left-3 text-xs font-bold py-1 px-2.5 rounded-md shadow-sm backdrop-blur-sm ${
+          type === 'lost' ? 'bg-red-500/95 text-white' : 'bg-green-500/95 text-white'
         }`}>
           {type === 'lost' ? 'Lost' : 'Found'}
         </div>
       </div>
-      
-      {/* Item Details */}
+
       <div className="p-4">
-        <h3 className="text-lg font-semibold text-gray-800 mb-2">{title}</h3>
-        
+        <h3 className="text-lg font-semibold text-gray-800 mb-2 transition-colors duration-200 group-hover:text-brand-blue">
+          {title}
+        </h3>
+
         <div className="space-y-2 mb-4">
           {location && (
             <div className="flex items-center text-sm text-gray-600">
@@ -61,14 +61,14 @@ const ItemCard = ({
               <span className="ml-2">{location}</span>
             </div>
           )}
-          
+
           {formattedDate && (
             <div className="flex items-center text-sm text-gray-600">
               <DateIcon />
               <span className="ml-2">{formattedDate}</span>
             </div>
           )}
-          
+
           {category && (
             <div className="flex items-center text-sm text-gray-600">
               <CategoryIcon />
@@ -76,12 +76,13 @@ const ItemCard = ({
             </div>
           )}
         </div>
-        
-        <Link 
-          to={`/item/${id}`} 
-          className="text-brand-blue hover:text-brand-blue-dark text-sm font-medium"
+
+        <Link
+          to={`/item/${id}`}
+          className="inline-flex items-center text-brand-blue hover:text-brand-blue-dark text-sm font-medium transition-all duration-200"
         >
-          View details →
+          View details
+          <span className="ml-1 transition-transform duration-200 group-hover:translate-x-1">→</span>
         </Link>
       </div>
     </div>

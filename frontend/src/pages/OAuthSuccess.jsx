@@ -23,6 +23,7 @@ const OAuthSuccess = () => {
         const username = params.get('username');
         const email = params.get('email');
         const authProvider = params.get('authProvider');
+        const avatar = params.get('avatar');
         
         // Verify token exists
         if (!token) {
@@ -41,7 +42,8 @@ const OAuthSuccess = () => {
           _id: userId,
           username,
           email,
-          authProvider
+          authProvider,
+          avatar: avatar || undefined,
         };
         
         localStorage.setItem('user', JSON.stringify(userData));

@@ -63,17 +63,19 @@ const Login = () => {
 
   return (
     <div className="flex items-center justify-center min-h-[calc(100vh-128px)] py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-xl shadow-lg">
-        <div>
+      <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-xl shadow-lift animate-scaleIn">
+        <div className="animate-fadeInUp">
           <h2 className="mt-6 text-center text-3xl font-bold text-gray-900">
-            Log in to your account
+            Welcome back
           </h2>
+          <p className="mt-2 text-center text-sm text-gray-500">
+            Log in to continue to <span className="font-semibold text-brand-blue">ELIF</span>
+          </p>
         </div>
 
-        {/* Error message display */}
         {(errorMsg || error) && (
-          <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
-            <p className="text-red-700">{errorMsg || error}</p>
+          <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4 rounded-r-md animate-fadeIn">
+            <p className="text-red-700 text-sm">{errorMsg || error}</p>
           </div>
         )}
 
@@ -115,7 +117,7 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-brand-blue hover:bg-brand-blue-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue disabled:opacity-50"
+              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-brand-blue hover:bg-brand-blue-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]"
             >
               {loading ? (
                 <>
@@ -147,7 +149,7 @@ const Login = () => {
             <button
               onClick={handleGoogleLogin}
               type="button"
-              className="w-full flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue"
+              className="w-full flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] disabled:opacity-50"
               disabled={loading}
             >
               <svg className="h-5 w-5 mr-2" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
@@ -165,7 +167,7 @@ const Login = () => {
 
         <p className="mt-2 text-center text-sm text-gray-600">
           Don't have an account?{' '}
-          <Link to="/signup" className="font-medium text-brand-blue hover:text-brand-blue-dark">
+          <Link to="/signup" className="font-medium text-brand-blue hover:text-brand-blue-dark transition-colors duration-200">
             Sign up
           </Link>
         </p>

@@ -82,17 +82,19 @@ const Signup = () => {
 
   return (
     <div className="flex items-center justify-center min-h-[calc(100vh-128px)] py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-xl shadow-lg">
-        <div>
+      <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-xl shadow-lift animate-scaleIn">
+        <div className="animate-fadeInUp">
           <h2 className="mt-6 text-center text-3xl font-bold text-gray-900">
             Create your account
           </h2>
+          <p className="mt-2 text-center text-sm text-gray-500">
+            Join the <span className="font-semibold text-brand-blue">ELIF</span> community
+          </p>
         </div>
 
-        {/* Error message display */}
         {(errorMsg || error) && (
-          <div className="bg-red-50 border-l-4 border-red-400 p-4">
-            <p className="text-red-700">{errorMsg || error}</p>
+          <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-r-md animate-fadeIn">
+            <p className="text-red-700 text-sm">{errorMsg || error}</p>
           </div>
         )}
 
@@ -100,11 +102,11 @@ const Signup = () => {
           <div className="rounded-md shadow-sm space-y-4">
             {/* Avatar Upload */}
             <div className="flex flex-col items-center mb-6">
-              <div className="w-24 h-24 mb-4 relative rounded-full overflow-hidden bg-gray-100 border border-gray-300">
+              <div className="w-24 h-24 mb-4 relative rounded-full overflow-hidden bg-gray-100 border-2 border-gray-200 ring-4 ring-white shadow-md transition-transform duration-300 hover:scale-105">
                 {avatarPreview ? (
-                  <img 
-                    src={avatarPreview} 
-                    alt="Avatar Preview" 
+                  <img
+                    src={avatarPreview}
+                    alt="Avatar Preview"
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -115,7 +117,7 @@ const Signup = () => {
                   </div>
                 )}
               </div>
-              <label htmlFor="avatar" className="cursor-pointer py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm leading-4 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue">
+              <label htmlFor="avatar" className="cursor-pointer py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm leading-4 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue transition-all duration-200 hover:shadow-md active:scale-[0.97]">
                 {avatarPreview ? 'Change Photo' : 'Upload Photo'}
               </label>
               <input 
@@ -202,7 +204,7 @@ const Signup = () => {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-brand-blue hover:bg-brand-blue-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue disabled:opacity-50"
+              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-brand-blue hover:bg-brand-blue-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]"
             >
               {loading ? (
                 <>
@@ -221,7 +223,7 @@ const Signup = () => {
 
         <p className="mt-2 text-center text-sm text-gray-600">
           Already have an account?{' '}
-          <Link to="/login" className="font-medium text-brand-blue hover:text-brand-blue-dark">
+          <Link to="/login" className="font-medium text-brand-blue hover:text-brand-blue-dark transition-colors duration-200">
             Log in
           </Link>
         </p>

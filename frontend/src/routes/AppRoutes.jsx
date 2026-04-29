@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import AiAssistant from '../components/AiAssistant';
 import Home from '../pages/Home';
 import Login from '../pages/Login';
 import Signup from '../pages/Signup';
@@ -43,6 +44,7 @@ const MainLayout = ({ children }) => (
         {children}
     </main>
     <Footer />
+    <AiAssistant />
   </div>
 );
 
