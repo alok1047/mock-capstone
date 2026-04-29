@@ -4,17 +4,28 @@ const Item = require('../models/Item');
 // Create Item API
 const createItem = async (req, res) => {
   try {
-    const { name, description, location, status, category } = req.body;
+    const { name, description, location, status, category, address, lat, lng } = req.body;
 
     if (!name?.trim() || !description?.trim() || !location?.trim() || !status?.trim()) {
       return res.status(400).json({ message: "All fields except image & category are required" });
     }
 
-    // Use req.user._id instead of hardcoded user ID
     const userId = req.user._id;
-
-    // Get image URL if uploaded
     const imageUrl = req.file ? req.file.path : undefined;
+
+    // Build the optional GeoJSON point if both coords are present and valid.
+    let geo;
+    const latNum = Number(lat);
+    const lngNum = Number(lng);
+    if (
+      Number.isFinite(latNum) &&
+      Number.isFinite(lngNum) &&
+      latNum >= -90 && latNum <= 90 &&
+      lngNum >= -180 && lngNum <= 180
+    ) {
+      // MongoDB GeoJSON convention: [lng, lat]
+      geo = { type: 'Point', coordinates: [lngNum, latNum] };
+    }
 
     let item = await Item.create({
       name: name.trim(),
@@ -22,22 +33,91 @@ const createItem = async (req, res) => {
       location: location.trim(),
       status: status.trim(),
       category: category?.trim() || 'other',
-      image: imageUrl, // Save the image URL
-      user: userId
+      image: imageUrl,
+      user: userId,
+      address: address?.trim() || undefined,
+      geo,
     });
-    
-    // Populate the user field to include username
+
     item = await Item.findById(item._id).populate('user', 'username');
 
     res.status(201).json({
       success: true,
       message: "Item created successfully",
-      data: item
+      data: item,
     });
-
   } catch (error) {
     console.log("Error while creating item:", error);
     res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+// Get Nearby Items API
+// GET /api/items/nearby?lat=..&lng=..&radius=3000&status=lost|found
+const getNearbyItems = async (req, res) => {
+  try {
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    const radius = Math.min(50000, Math.max(1, Number(req.query.radius) || 3000));
+    const { status } = req.query;
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid lat and lng query params are required',
+      });
+    }
+
+    // $geoNear via aggregate so we can return computed distance per item.
+    // $geoNear must be the FIRST stage of the pipeline.
+    const pipeline = [
+      {
+        $geoNear: {
+          near: { type: 'Point', coordinates: [lng, lat] },
+          distanceField: 'distance', // metres
+          maxDistance: radius,
+          spherical: true,
+          query: status ? { status } : {},
+        },
+      },
+      { $limit: 50 },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'user',
+          foreignField: '_id',
+          as: 'user',
+        },
+      },
+      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          name: 1,
+          description: 1,
+          location: 1,
+          address: 1,
+          geo: 1,
+          image: 1,
+          category: 1,
+          status: 1,
+          createdAt: 1,
+          distance: 1,
+          'user._id': 1,
+          'user.username': 1,
+        },
+      },
+    ];
+
+    const items = await Item.aggregate(pipeline);
+
+    res.status(200).json({
+      success: true,
+      message: 'Nearby items fetched successfully',
+      data: items,
+    });
+  } catch (error) {
+    console.log('Error while fetching nearby items:', error);
+    res.status(500).json({ message: 'Internal Server Error' });
   }
 };
 
@@ -547,15 +627,16 @@ const getUserDashboard = async (req, res) => {
   }
 };
 
-module.exports = { 
-  createItem, 
-  getAllItems, 
+module.exports = {
+  createItem,
+  getNearbyItems,
+  getAllItems,
   getItemById,
-  updateItem, 
+  updateItem,
   deleteItem,
   claimItem,
   getItemClaims,
   respondToClaim,
   getUserClaims,
-  getUserDashboard
+  getUserDashboard,
 };

@@ -213,7 +213,7 @@ const Dashboard = () => {
             </Link>
             <Link
               to="/report-found"
-              className="px-4 py-2 text-sm font-medium text-white bg-gray-900 hover:bg-black rounded-md transition"
+              className="px-4 py-2 text-sm font-medium text-white bg-brand-blue hover:bg-brand-blue-dark rounded-md transition"
             >
               Report found
             </Link>
@@ -256,7 +256,7 @@ const Dashboard = () => {
             </Link>
             <Link
               to="/report-found"
-              className="px-4 py-2 text-sm font-medium text-white bg-gray-900 hover:bg-black rounded-md transition"
+              className="px-4 py-2 text-sm font-medium text-white bg-brand-blue hover:bg-brand-blue-dark rounded-md transition"
             >
               Report found
             </Link>
@@ -427,7 +427,7 @@ const Dashboard = () => {
                             <button
                               onClick={() => handleClaimResponse(claim.item._id, claim._id, 'approved')}
                               disabled={processingClaimId === claim._id}
-                              className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-gray-900 hover:bg-black rounded transition disabled:opacity-50"
+                              className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-brand-blue hover:bg-brand-blue-dark rounded transition disabled:opacity-50"
                             >
                               {processingClaimId === claim._id && <Spinner className="h-3 w-3 mr-1.5" />}
                               Approve

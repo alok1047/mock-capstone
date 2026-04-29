@@ -90,6 +90,39 @@ export const getItemById = async (id) => {
 };
 
 /**
+ * Get items within `radius` metres of (lat, lng), sorted nearest first.
+ * Each item is decorated with a `distance` field (metres).
+ * @param {{ lat: number, lng: number, radius?: number, status?: string }} params
+ */
+export const getNearbyItems = async ({ lat, lng, radius = 3000, status } = {}) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+  const qs = new URLSearchParams({ lat: String(lat), lng: String(lng), radius: String(radius) });
+  if (status) qs.set('status', status);
+
+  try {
+    const response = await fetch(`${API_URL}/items/nearby?${qs.toString()}`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to fetch nearby items');
+    }
+    return data.data;
+  } catch (error) {
+    console.error('Error fetching nearby items:', error);
+    if (error.name === 'TypeError') {
+      throw new Error('Network error: Could not connect to server.');
+    } else if (error.name === 'AbortError') {
+      throw new Error('Request timed out. Please try again later.');
+    }
+    throw error;
+  }
+};
+
+/**
  * Get lost items only
  * @returns {Promise<Array>} List of lost items
  */

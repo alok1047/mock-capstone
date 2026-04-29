@@ -38,7 +38,11 @@ const Select = ({
     if (disabled) return;
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      setOpen((o) => !o);
+      if (open && highlight >= 0) {
+        choose(options[highlight]);
+      } else {
+        setOpen((o) => !o);
+      }
     } else if (e.key === 'Escape') {
       setOpen(false);
     } else if (e.key === 'ArrowDown') {
@@ -48,9 +52,6 @@ const Select = ({
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setHighlight((h) => Math.max(0, h - 1));
-    } else if (open && e.key === 'Enter' && highlight >= 0) {
-      e.preventDefault();
-      choose(options[highlight]);
     }
   };
 
@@ -66,8 +67,8 @@ const Select = ({
         aria-expanded={open}
         className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 bg-white border rounded-md text-sm transition disabled:opacity-50 disabled:cursor-not-allowed ${
           open
-            ? 'border-gray-900 ring-2 ring-gray-900/10'
-            : 'border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 focus:outline-none'
+            ? 'border-brand-blue ring-2 ring-brand-blue/20'
+            : 'border-gray-200 hover:border-gray-300 focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 focus:outline-none'
         }`}
       >
         <span className={selected ? 'text-gray-900' : 'text-gray-400'}>
