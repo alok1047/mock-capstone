@@ -263,87 +263,105 @@ const deleteItem = async (req, res) => {
 // Claim Item API - For users to submit a claim on an item
 const claimItem = async (req, res) => {
   try {
-    const { message } = req.body;
+    const { message, mobileNumber } = req.body;
     const userId = req.user._id;
-    
+
     // Validate if the id is a valid MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Invalid item ID format" 
-      });
-    }
-    
-    if (!message?.trim()) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Please provide a message explaining your claim" 
+      return res.status(400).json({
+        success: false,
+        message: "Invalid item ID format"
       });
     }
 
+    if (!message?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide a message explaining your claim"
+      });
+    }
+
+    // Mobile number is required so the finder can reach the claimant.
+    // Accept +, digits, spaces, and dashes; require 7-15 digits total.
+    const phone = mobileNumber?.trim();
+    const digitCount = phone ? phone.replace(/\D/g, '').length : 0;
+    if (!phone || digitCount < 7 || digitCount > 15) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide a valid mobile number"
+      });
+    }
+
+    // Proof images come from multer (Cloudinary). Field name: proofImages.
+    const proofImages = Array.isArray(req.files)
+      ? req.files.map((f) => f.path).filter(Boolean)
+      : [];
+
     // Find the item
     const item = await Item.findById(req.params.id);
-    
+
     if (!item) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "Item not found" 
+      return res.status(404).json({
+        success: false,
+        message: "Item not found"
       });
     }
-    
+
     // Check if user is claiming their own item
     if (item.user.toString() === userId.toString()) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "You cannot claim your own item" 
+      return res.status(400).json({
+        success: false,
+        message: "You cannot claim your own item"
       });
     }
-    
+
     // Check if item is already claimed
     if (item.status === 'claimed') {
-      return res.status(400).json({ 
-        success: false, 
-        message: "This item has already been claimed" 
+      return res.status(400).json({
+        success: false,
+        message: "This item has already been claimed"
       });
     }
-    
+
     // Check if user has already submitted a claim for this item
     const existingClaim = item.claims.find(
       claim => claim.claimant.toString() === userId.toString()
     );
-    
+
     if (existingClaim) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "You have already submitted a claim for this item" 
+      return res.status(400).json({
+        success: false,
+        message: "You have already submitted a claim for this item"
       });
     }
-    
+
     // Add the new claim
     item.claims.push({
       claimant: userId,
       message: message.trim(),
+      mobileNumber: phone,
+      proofImages,
       status: 'pending'
     });
-    
+
     await item.save();
-    
+
     // Return the updated item with populated user and claim information
     const updatedItem = await Item.findById(req.params.id)
       .populate('user', 'username')
       .populate('claims.claimant', 'username');
-    
+
     res.status(200).json({
       success: true,
       message: "Claim submitted successfully",
       data: updatedItem
     });
-    
+
   } catch (error) {
     console.log("Error while claiming item:", error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Internal Server Error" 
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error"
     });
   }
 };
@@ -567,6 +585,8 @@ const getUserDashboard = async (req, res) => {
             },
             claimant: claim.claimant,
             message: claim.message,
+            mobileNumber: claim.mobileNumber,
+            proofImages: claim.proofImages || [],
             status: claim.status,
             createdAt: claim.createdAt,
             respondedAt: claim.respondedAt,

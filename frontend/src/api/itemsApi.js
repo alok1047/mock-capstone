@@ -404,6 +404,8 @@ export const searchItems = async ({ term, category, status }) => {
  * @param {string} itemId - ID of the item to claim
  * @param {Object} claimData - Claim data
  * @param {string} claimData.message - Message explaining the claim
+ * @param {string} claimData.mobileNumber - Contact number of the claimant
+ * @param {File[]} [claimData.proofImages] - Photos that prove ownership
  * @returns {Promise<Object>} Updated item with the new claim
  */
 export const claimItem = async (itemId, claimData) => {
@@ -413,17 +415,28 @@ export const claimItem = async (itemId, claimData) => {
       throw new Error('Authentication required');
     }
 
-    // Add timeout to prevent hanging promises
+    // Longer timeout — image uploads can be slow on mobile networks.
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-    
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    const formData = new FormData();
+    formData.append('message', claimData.message ?? '');
+    formData.append('mobileNumber', claimData.mobileNumber ?? '');
+    if (Array.isArray(claimData.proofImages)) {
+      claimData.proofImages.forEach((file) => {
+        if (file instanceof File) {
+          formData.append('proofImages', file);
+        }
+      });
+    }
+
     const response = await fetch(`${API_URL}/items/${itemId}/claim`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        // No Content-Type — browser sets multipart boundary itself.
         ...authHeader()
       },
-      body: JSON.stringify(claimData),
+      body: formData,
       signal: controller.signal
     });
     

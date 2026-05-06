@@ -6,11 +6,20 @@
 
 html {
   scroll-behavior: smooth;
+  color-scheme: light;
 }
 
 body {
-  @apply font-sans antialiased text-gray-800 bg-brand-bg;
+  @apply font-sans antialiased text-gray-900 bg-white;
   font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
+
+/* Belt-and-braces: even if the OS prefers dark, keep the app on a white
+   surface with dark text. We never built dark styles, so letting the
+   browser auto-invert form controls / images / scrollbars looks broken. */
+@media (prefers-color-scheme: dark) {
+  html { color-scheme: light; }
+  body { @apply bg-white text-gray-900; }
 }
 
 @layer components {

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { getItemById, claimItem, respondToClaim, updateItem, deleteItem } from '../api/itemsApi';
 import { useAuth } from '../contexts/AuthContext';
+import CameraCapture from '../components/CameraCapture';
 
 // Icons
 const LostIcon = () => (
@@ -62,12 +63,17 @@ const ItemDetail = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [claimMessage, setClaimMessage] = useState('');
+  const [claimMobile, setClaimMobile] = useState('');
+  const [claimProofs, setClaimProofs] = useState([]); // File[]
+  const [claimProofPreviews, setClaimProofPreviews] = useState([]); // string[]
+  const [claimCameraOpen, setClaimCameraOpen] = useState(false);
   const [submittingClaim, setSubmittingClaim] = useState(false);
   const [claimSuccess, setClaimSuccess] = useState(false);
   const [showClaimForm, setShowClaimForm] = useState(false);
   const [processingClaimId, setProcessingClaimId] = useState(null);
   const [claimActionError, setClaimActionError] = useState(null);
   const [claimActionSuccess, setClaimActionSuccess] = useState(false);
+  const [proofViewer, setProofViewer] = useState(null); // { url } | null
   
   // Edit mode state
   const [isEditMode, setIsEditMode] = useState(false);
@@ -295,34 +301,96 @@ const ItemDetail = () => {
   // Check if the current user is the owner of this item
   const isOwner = currentUser && item?.user && currentUser._id === item.user._id;
   
-  // Check if the current user has already claimed this item
-  const hasUserClaimed = currentUser && item?.claims?.some(
-    claim => claim.user === currentUser._id
-  );
+  // Check if the current user has already claimed this item.
+  // Backend populates `claims.claimant`, so handle both populated and raw ids.
+  const hasUserClaimed = currentUser && item?.claims?.some((claim) => {
+    const cid = claim.claimant?._id || claim.claimant;
+    return cid && cid.toString() === currentUser._id.toString();
+  });
+
+  // Add proof images from the file picker / drag-drop.
+  // Caps total at 5; rejects non-images and files >10MB.
+  const acceptProofFiles = (filesIterable) => {
+    const incoming = Array.from(filesIterable || []);
+    if (!incoming.length) return;
+
+    const maxFiles = 5;
+    const remaining = Math.max(0, maxFiles - claimProofs.length);
+    if (remaining === 0) {
+      setError('You can attach up to 5 proof photos.');
+      return;
+    }
+
+    const accepted = [];
+    for (const file of incoming.slice(0, remaining)) {
+      if (!file.type.startsWith('image/')) {
+        setError('Only image files are allowed for proof photos.');
+        continue;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        setError('Each proof photo must be smaller than 10MB.');
+        continue;
+      }
+      accepted.push(file);
+    }
+    if (!accepted.length) return;
+
+    setClaimProofs((prev) => [...prev, ...accepted]);
+    setClaimProofPreviews((prev) => [
+      ...prev,
+      ...accepted.map((f) => URL.createObjectURL(f)),
+    ]);
+    setError(null);
+  };
+
+  const removeProofAt = (index) => {
+    setClaimProofPreviews((prev) => {
+      const url = prev[index];
+      if (url) URL.revokeObjectURL(url);
+      return prev.filter((_, i) => i !== index);
+    });
+    setClaimProofs((prev) => prev.filter((_, i) => i !== index));
+  };
 
   // Handle claim submission
   const handleSubmitClaim = async (e) => {
     e.preventDefault();
-    
+
     if (!isAuthenticated) {
       // Redirect to login if not authenticated
       navigate('/login', { state: { from: `/item/${id}` } });
       return;
     }
-    
+
     if (!claimMessage.trim()) {
       setError('Please provide a message explaining your claim.');
       return;
     }
-    
+
+    const digits = claimMobile.replace(/\D/g, '');
+    if (digits.length < 7 || digits.length > 15) {
+      setError('Please enter a valid mobile number.');
+      return;
+    }
+
     try {
       setSubmittingClaim(true);
       setError(null);
-      
-      await claimItem(id, { message: claimMessage });
-      
+
+      await claimItem(id, {
+        message: claimMessage,
+        mobileNumber: claimMobile.trim(),
+        proofImages: claimProofs,
+      });
+
       setClaimSuccess(true);
       setShowClaimForm(false);
+      // Reset form state and free preview blobs
+      claimProofPreviews.forEach((u) => URL.revokeObjectURL(u));
+      setClaimMessage('');
+      setClaimMobile('');
+      setClaimProofs([]);
+      setClaimProofPreviews([]);
       // Refresh item details to show the new claim
       const updatedItem = await getItemById(id);
       setItem(updatedItem);
@@ -425,6 +493,55 @@ const ItemDetail = () => {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
+      {/* Camera modal for capturing proof photos */}
+      <CameraCapture
+        open={claimCameraOpen}
+        onClose={() => setClaimCameraOpen(false)}
+        onCapture={(file) => acceptProofFiles([file])}
+      />
+
+      {/* Proof photo viewer — matches the project's modal style: soft
+          dimmed backdrop with a white card on top, NOT a full-screen
+          black overlay. */}
+      {proofViewer && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Proof photo"
+          onClick={() => setProofViewer(null)}
+          className="fixed inset-0 z-50 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-fadeIn"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-2xl bg-white rounded-xl shadow-lift overflow-hidden"
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wider text-brand-blue">Proof photo</p>
+                <h2 className="text-base font-semibold text-gray-900 mt-0.5">Verify the claim</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setProofViewer(null)}
+                aria-label="Close"
+                className="text-gray-400 hover:text-gray-700 transition"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-4 bg-white">
+              <img
+                src={proofViewer.url}
+                alt="Proof photo full size"
+                className="block max-h-[70vh] w-auto mx-auto rounded-md border border-gray-200"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Back button */}
       <div className="mb-6">
         <button
@@ -787,6 +904,93 @@ const ItemDetail = () => {
                               </p>
                             </div>
 
+                            <div>
+                              <label htmlFor="claimMobile" className="block text-sm font-medium text-gray-700 mb-1">
+                                Mobile number *
+                              </label>
+                              <input
+                                id="claimMobile"
+                                name="claimMobile"
+                                type="tel"
+                                inputMode="tel"
+                                autoComplete="tel"
+                                value={claimMobile}
+                                onChange={(e) => setClaimMobile(e.target.value)}
+                                placeholder="e.g. +91 98765 43210"
+                                className="w-full rounded-md border-gray-300 shadow-sm focus:border-brand-blue focus:ring-brand-blue"
+                                required
+                              />
+                              <p className="mt-1 text-sm text-gray-500">
+                                Shared with the finder so they can reach you to verify and hand over the item.
+                              </p>
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Proof photos
+                              </label>
+                              <p className="text-sm text-gray-500 mb-2">
+                                Upload or capture photos that prove this item is yours (e.g. earlier photos with the item, receipts, serial numbers). Up to 5 images.
+                              </p>
+
+                              {claimProofPreviews.length > 0 && (
+                                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-3">
+                                  {claimProofPreviews.map((url, idx) => (
+                                    <div key={url} className="relative group">
+                                      <img
+                                        src={url}
+                                        alt={`Proof ${idx + 1}`}
+                                        className="h-24 w-full object-cover rounded-md border border-gray-200"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => removeProofAt(idx)}
+                                        aria-label="Remove photo"
+                                        className="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded-full p-1"
+                                      >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {claimProofs.length < 5 && (
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setClaimCameraOpen(true)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-brand-blue hover:bg-blue-700 rounded-md transition"
+                                  >
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4" aria-hidden="true">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h2.586a1 1 0 00.707-.293l1.414-1.414A1 1 0 0110.414 5h3.172a1 1 0 01.707.293l1.414 1.414a1 1 0 00.707.293H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                      <circle cx="12" cy="13" r="3" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                    Take photo
+                                  </button>
+
+                                  <label className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-md cursor-pointer transition">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4" aria-hidden="true">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M16 8l-4-4m0 0L8 8m4-4v12" />
+                                    </svg>
+                                    Upload photos
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      multiple
+                                      className="sr-only"
+                                      onChange={(e) => {
+                                        acceptProofFiles(e.target.files);
+                                        e.target.value = '';
+                                      }}
+                                    />
+                                  </label>
+                                </div>
+                              )}
+                            </div>
+
                             {error && (
                               <div className="text-sm text-red-600">
                                 {error}
@@ -880,19 +1084,59 @@ const ItemDetail = () => {
                         <div key={claim._id} className="border rounded-lg p-4 bg-gray-50">
                           <div className="flex justify-between items-start">
                             <div>
-                              <p className="font-medium">{claim.user?.username || 'Anonymous'}</p>
+                              <p className="font-medium">{claim.claimant?.username || 'Anonymous'}</p>
                               <p className="text-sm text-gray-500">{formatDate(claim.createdAt)}</p>
                               <p className="mt-2">{claim.message}</p>
                             </div>
                             <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                               claim.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                              claim.status === 'approved' ? 'bg-green-100 text-green-800' : 
+                              claim.status === 'approved' ? 'bg-green-100 text-green-800' :
                               'bg-red-100 text-red-800'
                             }`}>
                               {claim.status}
                             </span>
                           </div>
-                          
+
+                          {claim.mobileNumber && (
+                            <div className="mt-3 text-sm">
+                              <span className="font-medium text-gray-700">Contact:</span>{' '}
+                              <a
+                                href={`tel:${claim.mobileNumber}`}
+                                className="text-brand-blue hover:underline"
+                              >
+                                {claim.mobileNumber}
+                              </a>
+                            </div>
+                          )}
+
+                          {claim.proofImages && claim.proofImages.length > 0 && (
+                            <div className="mt-3">
+                              <p className="text-sm font-medium text-gray-700 mb-2">
+                                Proof photos ({claim.proofImages.length})
+                              </p>
+                              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                {claim.proofImages.map((url, idx) => (
+                                  <button
+                                    type="button"
+                                    key={`${claim._id}-proof-${idx}`}
+                                    onClick={() => setProofViewer({ url })}
+                                    className="block focus:outline-none focus:ring-2 focus:ring-brand-blue rounded-md"
+                                    title="View full size"
+                                  >
+                                    <img
+                                      src={url}
+                                      alt={`Proof ${idx + 1}`}
+                                      className="h-24 w-full object-cover rounded-md border border-gray-200 hover:opacity-90 transition"
+                                    />
+                                  </button>
+                                ))}
+                              </div>
+                              <p className="mt-2 text-xs text-gray-500">
+                                Review these photos to verify the claim before approving.
+                              </p>
+                            </div>
+                          )}
+
                           {claim.status === 'pending' && (
                             <div className="mt-4 flex space-x-2">
                               <button

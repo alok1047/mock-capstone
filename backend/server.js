@@ -19,6 +19,7 @@ const passport = require('./config/passport');
 const authRoutes = require('./routes/authRoutes');
 const itemRoutes = require('./routes/itemRoutes');
 const aiRoutes = require('./routes/aiRoutes');
+const reviewRoutes = require('./routes/reviewRoutes');
 
 // ---- Env sanity check (warn-only, never exit) ----
 const REQUIRED_ENV = ['MONGO_URL', 'JWT_SECRET'];
@@ -86,6 +87,7 @@ app.get('/health', (_req, res) =>
 app.use('/api/auth', authRoutes);
 app.use('/api/items', itemRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 // ---- 404 + Error handler (keep last) ----
 app.use((req, res) => {

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import useGoogleMaps from '../hooks/useGoogleMaps';
+import { getGeolocation } from '../hooks/useGeolocation';
 
 /**
  * Google Places autocomplete using the new `PlaceAutocompleteElement`
@@ -141,57 +142,57 @@ const PlaceAutocomplete = ({
     if (elRef.current) elRef.current.style.pointerEvents = disabled ? 'none' : '';
   }, [disabled]);
 
-  const handleUseMyLocation = () => {
+  const handleUseMyLocation = async () => {
     if (locating) return;
     setLocateErr(null);
-    if (!navigator.geolocation) {
-      setLocateErr("Your browser doesn't support geolocation");
-      return;
-    }
     setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        // Reverse-geocode to a human-readable address. Fall back to a
-        // "lat, lng" string if the geocoder is unavailable.
-        let address = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    try {
+      // Goes through the shared cache — instant when a recent fix exists.
+      const { lat, lng } = await getGeolocation();
+
+      // Reverse-geocode to a human-readable address. Fall back to a
+      // "lat, lng" string if the geocoder is unavailable.
+      let address = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      try {
+        const geocodingLib = await window.google.maps.importLibrary('geocoding');
+        const Geocoder = geocodingLib.Geocoder || window.google.maps.Geocoder;
+        if (Geocoder) {
+          const geocoder = new Geocoder();
+          const { results } = await geocoder.geocode({ location: { lat, lng } });
+          if (results?.[0]?.formatted_address) {
+            address = results[0].formatted_address;
+          }
+        }
+      } catch (e) {
+        console.warn('Reverse geocode failed:', e);
+      }
+
+      // Reflect the new value in the autocomplete's own input field too.
+      if (elRef.current && 'value' in elRef.current) {
         try {
-          const geocodingLib = await window.google.maps.importLibrary('geocoding');
-          const Geocoder = geocodingLib.Geocoder || window.google.maps.Geocoder;
-          if (Geocoder) {
-            const geocoder = new Geocoder();
-            const { results } = await geocoder.geocode({ location: { lat, lng } });
-            if (results?.[0]?.formatted_address) {
-              address = results[0].formatted_address;
-            }
-          }
-        } catch (e) {
-          console.warn('Reverse geocode failed:', e);
+          elRef.current.value = address;
+        } catch {
+          /* ignore */
         }
-        // Reflect the new value in the autocomplete's own input field too.
-        if (elRef.current && 'value' in elRef.current) {
-          try {
-            elRef.current.value = address;
-          } catch {
-            /* ignore */
-          }
-        }
-        onChange?.({ address, lat, lng });
-        setLocating(false);
-      },
-      (err) => {
-        setLocating(false);
-        if (err.code === 1) {
-          setLocateErr('Location permission denied. Allow access in your browser settings.');
-        } else if (err.code === 3) {
-          setLocateErr('Locating timed out. Please try again.');
-        } else {
-          setLocateErr("We couldn't get your location. Please try again.");
-        }
-      },
-      { enableHighAccuracy: false, timeout: 15000, maximumAge: 60_000 }
-    );
+      }
+      onChange?.({ address, lat, lng });
+    } catch (err) {
+      if (err?.unsupported) {
+        setLocateErr("Your browser doesn't support geolocation.");
+      } else if (err?.code === 1) {
+        setLocateErr('Location permission denied. Allow access in your browser settings.');
+      } else if (err?.code === 3) {
+        setLocateErr(
+          "Locating timed out. Try moving outside or near a window, or pick a place from the list above."
+        );
+      } else {
+        setLocateErr(
+          "We couldn't get your location. Try again, or pick a place from the list above."
+        );
+      }
+    } finally {
+      setLocating(false);
+    }
   };
 
   if (error) {

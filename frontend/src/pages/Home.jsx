@@ -52,7 +52,7 @@ const Home = () => {
                 <ReportIconSmall /> Report an Item
               </Link>
               <Link
-                to="/search-items"
+                to="/lost-items?focus=search"
                 className="inline-flex items-center justify-center bg-white hover:bg-gray-50 text-gray-700 px-6 py-3 rounded-md font-semibold transition-all duration-200 border border-gray-300 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] w-full sm:w-auto"
               >
                 <SearchIconSmall /> Search Lost Items
