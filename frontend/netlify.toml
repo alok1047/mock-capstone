@@ -1,0 +1,11 @@
+[build]
+  base    = "frontend"
+  command = "npm run build"
+  publish = "dist"
+
+# SPA fallback — serve index.html for any path so React Router can take over.
+# Without this, refreshing /dashboard or any deep link returns a 404 from Netlify.
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200

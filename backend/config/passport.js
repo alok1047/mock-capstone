@@ -12,16 +12,21 @@ const {
 // This lets the server boot in local/dev without OAuth set up,
 // instead of throwing `OAuth2Strategy requires a clientID option`.
 if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
+  // SERVER_URL must match what's registered in the Google Cloud OAuth consent
+  // screen. Falls back to localhost for dev. NODE_ENV is only consulted as a
+  // last resort if SERVER_URL isn't set.
+  const serverUrl =
+    process.env.SERVER_URL ||
+    (NODE_ENV === 'production'
+      ? 'https://mock-capstone.onrender.com'
+      : 'http://localhost:3000');
+
   passport.use(
     new GoogleStrategy(
       {
         clientID: GOOGLE_CLIENT_ID,
         clientSecret: GOOGLE_CLIENT_SECRET,
-        callbackURL: `${
-          NODE_ENV === 'production'
-            ? 'https://elif-backend.onrender.com'
-            : 'http://localhost:3000'
-        }/api/auth/google/callback`,
+        callbackURL: `${serverUrl}/api/auth/google/callback`,
         scope: ['profile', 'email'],
       },
       async (_accessToken, _refreshToken, profile, done) => {

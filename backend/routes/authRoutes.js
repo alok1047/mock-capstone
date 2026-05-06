@@ -14,14 +14,15 @@ const router = express.Router();
 router.post('/signup', uploadAvatar.single('avatar'), signupUser);
 router.post('/login', loginUser);
 
-// Google OAuth — only mount when credentials are configured
+// Google OAuth — only mount when credentials are configured.
+// callbackURL is configured once in config/passport.js so it works in both
+// local dev and production without a per-route override.
 if (passport.isGoogleEnabled) {
   router.get(
     '/google',
     passport.authenticate('google', {
       scope: ['profile', 'email'],
       session: false,
-      callbackURL: 'http://localhost:3000/api/auth/google/callback',
     })
   );
 
@@ -30,7 +31,6 @@ if (passport.isGoogleEnabled) {
     passport.authenticate('google', {
       failureRedirect: '/api/auth/google/failure',
       session: false,
-      callbackURL: 'http://localhost:3000/api/auth/google/callback',
     }),
     googleCallback
   );
