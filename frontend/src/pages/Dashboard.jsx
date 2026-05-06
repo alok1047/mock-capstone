@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { deleteItem, getUserDashboard, respondToClaim } from '../api/itemsApi';
 import { useAuth } from '../contexts/AuthContext';
+import ReviewModal from '../components/ReviewModal';
 
 // ---------- Tiny presentational helpers ----------
 
@@ -95,6 +96,8 @@ const Dashboard = () => {
   const [error, setError] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [processingClaimId, setProcessingClaimId] = useState(null);
+  const [reviewItem, setReviewItem] = useState(null); // { _id, name } or null
+  const [proofViewer, setProofViewer] = useState(null); // { url } | null
 
   useEffect(() => {
     if (!currentUser) return;
@@ -410,10 +413,37 @@ const Dashboard = () => {
                         <Td>
                           <p className="text-sm text-gray-900">{claim.claimant.username}</p>
                           <p className="text-xs text-gray-500">{claim.claimant.email}</p>
+                          {claim.mobileNumber && (
+                            <a
+                              href={`tel:${claim.mobileNumber}`}
+                              className="text-xs text-brand-blue hover:underline"
+                            >
+                              {claim.mobileNumber}
+                            </a>
+                          )}
                         </Td>
                         <Td><span className="text-sm text-gray-500">{fmtDate(claim.createdAt)}</span></Td>
                         <Td>
-                          <p className="text-sm text-gray-700 max-w-xs truncate">{claim.message}</p>
+                          <p className="text-sm text-gray-700 max-w-xs">{claim.message}</p>
+                          {claim.proofImages && claim.proofImages.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {claim.proofImages.map((url, idx) => (
+                                <button
+                                  type="button"
+                                  key={`${claim._id}-proof-${idx}`}
+                                  onClick={() => setProofViewer({ url })}
+                                  className="block focus:outline-none focus:ring-2 focus:ring-brand-blue rounded"
+                                  title="View proof photo"
+                                >
+                                  <img
+                                    src={url}
+                                    alt={`Proof ${idx + 1}`}
+                                    className="h-12 w-12 object-cover rounded border border-gray-200 hover:opacity-90 transition"
+                                  />
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </Td>
                         <Td className="text-right">
                           <div className="inline-flex items-center gap-2">
@@ -453,7 +483,8 @@ const Dashboard = () => {
                       <Th>Item</Th>
                       <Th>Owner</Th>
                       <Th>Date</Th>
-                      <Th className="text-right">Status</Th>
+                      <Th>Status</Th>
+                      <Th className="text-right">Action</Th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-100">
@@ -473,10 +504,26 @@ const Dashboard = () => {
                           <p className="text-xs text-gray-500">{claim.owner.email}</p>
                         </Td>
                         <Td><span className="text-sm text-gray-500">{fmtDate(claim.createdAt)}</span></Td>
-                        <Td className="text-right">
+                        <Td>
                           {claim.status === 'pending' && <Pill tone="amber">Pending</Pill>}
                           {claim.status === 'approved' && <Pill tone="emerald">Approved</Pill>}
                           {claim.status === 'rejected' && <Pill tone="rose">Rejected</Pill>}
+                        </Td>
+                        <Td className="text-right">
+                          {claim.status === 'approved' ? (
+                            <button
+                              type="button"
+                              onClick={() => setReviewItem(claim.item)}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-brand-blue hover:bg-brand-blue-dark rounded transition"
+                            >
+                              <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5" aria-hidden="true">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.957a1 1 0 00.95.69h4.162c.969 0 1.371 1.24.588 1.81l-3.367 2.446a1 1 0 00-.364 1.118l1.286 3.957c.3.921-.755 1.688-1.54 1.118L10.588 15.5a1 1 0 00-1.176 0l-3.366 2.523c-.785.57-1.84-.197-1.54-1.118l1.286-3.957a1 1 0 00-.364-1.118L2.06 9.384c-.783-.57-.38-1.81.588-1.81h4.163a1 1 0 00.95-.69l1.288-3.957z" />
+                              </svg>
+                              Write a review
+                            </button>
+                          ) : (
+                            <span className="text-xs text-gray-400">—</span>
+                          )}
                         </Td>
                       </tr>
                     ))}
@@ -485,6 +532,54 @@ const Dashboard = () => {
               </TableShell>
             </section>
           )}
+        </div>
+      )}
+
+      {/* Review modal — opens with the picked claim's item pre-filled */}
+      <ReviewModal
+        open={Boolean(reviewItem)}
+        item={reviewItem}
+        onClose={() => setReviewItem(null)}
+        onSubmitted={() => setReviewItem(null)}
+      />
+
+      {/* Proof photo viewer — soft backdrop, white card, matches ReviewModal */}
+      {proofViewer && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Proof photo"
+          onClick={() => setProofViewer(null)}
+          className="fixed inset-0 z-50 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-fadeIn"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-2xl bg-white rounded-xl shadow-lift overflow-hidden"
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wider text-brand-blue">Proof photo</p>
+                <h2 className="text-base font-semibold text-gray-900 mt-0.5">Verify the claim</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setProofViewer(null)}
+                aria-label="Close"
+                className="text-gray-400 hover:text-gray-700 transition"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-4 bg-white">
+              <img
+                src={proofViewer.url}
+                alt="Proof photo full size"
+                className="block max-h-[70vh] w-auto mx-auto rounded-md border border-gray-200"
+              />
+            </div>
+          </div>
         </div>
       )}
     </div>

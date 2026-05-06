@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import ItemCard from './ItemCard';
 import PlaceAutocomplete from './PlaceAutocomplete';
 import { getNearbyItems } from '../api/itemsApi';
@@ -67,6 +67,8 @@ const ItemBrowser = ({ kind }) => {
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [category, setCategory] = useState('');
+  const searchInputRef = useRef(null);
+  const [searchParams] = useSearchParams();
   // Override = user picked a different place to search around.
   const [override, setOverride] = useState(null); // { address, lat, lng } | null
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -155,6 +157,22 @@ const ItemBrowser = ({ kind }) => {
       geoStatus === 'unavailable' ||
       geoStatus === 'unsupported');
   const hasCenter = Boolean(center);
+
+  // Auto-focus the search input when arriving with `?focus=search`
+  // (e.g. from the homepage hero "Search Lost Items" button). Re-runs
+  // when the input becomes available — the input only renders once
+  // we have a centre.
+  useEffect(() => {
+    if (searchParams.get('focus') !== 'search') return;
+    if (!hasCenter) return;
+    const id = setTimeout(() => {
+      const el = searchInputRef.current;
+      if (!el) return;
+      el.focus();
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+    return () => clearTimeout(id);
+  }, [searchParams, hasCenter]);
 
   const blockedMessage = (() => {
     if (geoStatus === 'denied') {
@@ -266,6 +284,7 @@ const ItemBrowser = ({ kind }) => {
               <SearchIcon />
             </div>
             <input
+              ref={searchInputRef}
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}

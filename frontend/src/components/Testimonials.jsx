@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { getAllReviews } from '../api/reviewsApi';
 
 /**
  * "Trusted by People Who Found What They Lost"
@@ -16,7 +17,21 @@ import React from 'react';
  *     cards softly emerge / dissolve instead of clipping abruptly.
  */
 
-const TESTIMONIALS = [
+// Pull a city-ish token out of an address. Google "formatted_address" comes
+// back like `JECRC University, Sitapura, Vidhani, Rajasthan, India` — we
+// want something city-shaped, not the whole string.
+const extractCity = (raw) => {
+  if (!raw) return '';
+  const parts = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (parts.length <= 1) return parts[0] || raw;
+  if (parts.length >= 4) return parts[parts.length - 3]; // skip country + state
+  return parts[1] || parts[0];
+};
+
+const SAMPLE_TESTIMONIALS = [
   {
     name: 'Priya Sharma',
     city: 'Jaipur',
@@ -176,9 +191,42 @@ const Card = ({ name, city, item, time, story, rating, avatar }) => {
   );
 };
 
+// Map a `Review` document from the API into the card prop shape.
+const reviewToCard = (r) => ({
+  name: r.user?.username || 'ELIF user',
+  city: extractCity(r.item?.address || r.item?.location) || '—',
+  item: r.item?.name || 'Item',
+  time: r.timeToRecover || 'Recently recovered',
+  story: r.story,
+  rating: r.rating,
+  avatar: r.user?.avatar,
+});
+
 const Testimonials = () => {
+  const [reviews, setReviews] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getAllReviews()
+      .then((data) => {
+        if (cancelled) return;
+        setReviews(Array.isArray(data) ? data : []);
+      })
+      .catch((err) => {
+        // Soft-fail: section keeps working with sample data.
+        console.warn('Testimonials fetch failed:', err.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Real reviews first, then samples to backfill so the marquee always
+  // looks populated even on a fresh deployment with zero reviews.
+  const liveCards = reviews.map(reviewToCard);
+  const merged = [...liveCards, ...SAMPLE_TESTIMONIALS];
   // Render the array twice so a translateX of -50% loops seamlessly.
-  const loop = [...TESTIMONIALS, ...TESTIMONIALS];
+  const loop = [...merged, ...merged];
   return (
     <section className="relative py-4">
       <div className="text-center mb-10 animate-fadeInUp">

@@ -29,12 +29,24 @@ const avatarStorage = new CloudinaryStorage({
   }
 });
 
+// Configure storage for claim proof images
+const claimProofStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'item-finder/claim-proofs',
+    allowed_formats: ['jpg', 'jpeg', 'png'],
+    transformation: [{ width: 1200, height: 1200, crop: 'limit' }]
+  }
+});
+
 // Create multer upload instances
 const uploadItem = multer({ storage: itemStorage });
 const uploadAvatar = multer({ storage: avatarStorage });
+const uploadClaimProof = multer({ storage: claimProofStorage });
 
-module.exports = { 
-  cloudinary, 
-  uploadItem, 
-  uploadAvatar 
+module.exports = {
+  cloudinary,
+  uploadItem,
+  uploadAvatar,
+  uploadClaimProof,
 };
