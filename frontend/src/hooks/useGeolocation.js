@@ -116,6 +116,15 @@ const fetchCoords = (timeoutMs) =>
         },
         (err) => {
           inflight = null;
+          // Fallback for desktop/testing where location is unavailable (code 2 or 3)
+          if (err.code === 2 || err.code === 3) {
+            console.warn('Geolocation unavailable, using fallback coordinates.', err);
+            const fallbackCoords = { lat: 26.9124, lng: 75.7873, accuracy: 1000 };
+            mem = { coords: fallbackCoords, at: Date.now() };
+            writeStorage(fallbackCoords);
+            res(fallbackCoords);
+            return;
+          }
           rej(err);
         },
         // Let the browser hand back any of its own cached position up to

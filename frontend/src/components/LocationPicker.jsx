@@ -1,295 +1,180 @@
 import React, { useEffect, useRef, useState } from 'react';
-import useGoogleMaps from '../hooks/useGoogleMaps';
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
+import L from 'leaflet';
 import useGeolocation from '../hooks/useGeolocation';
+
+// Fix default Leaflet marker icon (Vite doesn't bundle it correctly by default)
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+});
+
+const DEFAULT_CENTER = [26.9124, 75.7873]; // Jaipur
+
+/**
+ * Reverse-geocode (lat, lng) → address via Nominatim (free, no API key).
+ */
+const reverseGeocode = async (lat, lng) => {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+      { headers: { 'Accept-Language': 'en' } }
+    );
+    const data = await res.json();
+    return data?.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  } catch {
+    return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  }
+};
+
+/**
+ * Inner component that handles map clicks and updates the marker position.
+ */
+const MapClickHandler = ({ disabled, onLocationChange }) => {
+  useMapEvents({
+    click(e) {
+      if (disabled) return;
+      onLocationChange(e.latlng.lat, e.latlng.lng);
+    },
+  });
+  return null;
+};
+
+/**
+ * Pans the map to a new center when it changes.
+ */
+const RecenterMap = ({ lat, lng, zoom }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (lat != null && lng != null) {
+      map.flyTo([lat, lng], zoom || 16, { duration: 0.8 });
+    }
+  }, [lat, lng, zoom, map]);
+  return null;
+};
 
 /**
  * Interactive map for marking the EXACT location something was found.
  *
- * - Search box uses the new `PlaceAutocompleteElement` web component
- *   (legacy `Autocomplete` is unavailable to projects created after
- *   March 1, 2025 and silently fails for them).
- * - Map + Marker + Geocoder remain on the still-supported APIs.
- *
+ * Uses Leaflet + OpenStreetMap tiles (completely free, no API key).
  * Emits `onChange({ address, lat, lng })` whenever the marker moves
- * (drag, map click, place pick, or "use my location").
+ * (drag, map click, or "use my location").
  */
-const DEFAULT_CENTER = { lat: 26.9124, lng: 75.7873 }; // Jaipur
-
 const LocationPicker = ({ value, onChange, disabled = false }) => {
-  const { ready, error } = useGoogleMaps();
   const { coords: gpsCoords, request: requestGps, status: gpsStatus } =
     useGeolocation({ auto: false });
-
-  const mapDivRef = useRef(null);
-  const searchHostRef = useRef(null);
-  const mapRef = useRef(null);
-  const markerRef = useRef(null);
-  const geocoderRef = useRef(null);
-  const acElRef = useRef(null);
 
   const [pos, setPos] = useState(
     value?.lat && value?.lng ? { lat: value.lat, lng: value.lng } : null
   );
   const [address, setAddress] = useState(value?.address || '');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const searchTimeout = useRef(null);
 
-  // Reverse-geocode (lat, lng) → human-readable address.
-  const reverseGeocode = (lat, lng) => {
-    if (!geocoderRef.current) return;
-    geocoderRef.current.geocode({ location: { lat, lng } }, (results, status) => {
-      const a = status === 'OK' && results?.[0]?.formatted_address;
-      const next = a || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-      setAddress(next);
-      onChange?.({ address: next, lat, lng });
-    });
+  const markerPos = pos || { lat: DEFAULT_CENTER[0], lng: DEFAULT_CENTER[1] };
+
+  const handleLocationChange = async (lat, lng) => {
+    setPos({ lat, lng });
+    const addr = await reverseGeocode(lat, lng);
+    setAddress(addr);
+    onChange?.({ address: addr, lat, lng });
   };
 
-  const [importErr, setImportErr] = useState(null);
+  const handleMarkerDragEnd = (e) => {
+    const { lat, lng } = e.target.getLatLng();
+    handleLocationChange(lat, lng);
+  };
 
-  // ---- Initialise once SDK is ready ----
+  // When GPS resolves, jump there
   useEffect(() => {
-    if (!ready || mapRef.current || !mapDivRef.current) return;
-    let cancelled = false;
-
-    (async () => {
-      let mapsLib, placesLib, geocodingLib, markerLib;
-      try {
-        [mapsLib, placesLib, geocodingLib, markerLib] = await Promise.all([
-          window.google.maps.importLibrary('maps'),
-          window.google.maps.importLibrary('places'),
-          window.google.maps.importLibrary('geocoding'),
-          window.google.maps.importLibrary('marker'),
-        ]);
-      } catch (e) {
-        if (!cancelled) setImportErr(e);
-        return;
-      }
-      if (cancelled) return;
-
-      const MapCtor = mapsLib.Map || window.google.maps.Map;
-      const GeocoderCtor = geocodingLib.Geocoder || window.google.maps.Geocoder;
-      const AdvancedMarker = markerLib?.AdvancedMarkerElement;
-      const LegacyMarker = mapsLib.Marker || window.google.maps.Marker;
-      const PlaceAutoCtor = placesLib.PlaceAutocompleteElement;
-
-      if (!MapCtor || !GeocoderCtor) {
-        setImportErr(new Error('Required Maps constructors not available'));
-        return;
-      }
-
-      geocoderRef.current = new GeocoderCtor();
-
-      const initialCenter = pos || DEFAULT_CENTER;
-      const envMapId = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID || 'DEMO_MAP_ID';
-      // mapId is only valid when we actually have an AdvancedMarkerElement
-      // implementation — otherwise the map silently strips legacy `styles`.
-      const useAdvanced = Boolean(AdvancedMarker);
-      const map = new MapCtor(mapDivRef.current, {
-        center: initialCenter,
-        zoom: pos ? 16 : 13,
-        disableDefaultUI: true,
-        zoomControl: true,
-        clickableIcons: false,
-        gestureHandling: 'cooperative',
-        ...(useAdvanced
-          ? { mapId: envMapId }
-          : {
-              // Legacy path keeps the soft styling (POI/transit hidden).
-              styles: [
-                { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-                { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-              ],
-            }),
-      });
-      mapRef.current = map;
-
-      // Try AdvancedMarkerElement first; fall back to legacy Marker if the
-      // construction throws (e.g. marker library partially loaded, or the
-      // mapId is rejected).
-      let marker;
-      try {
-        if (useAdvanced) {
-          marker = new AdvancedMarker({
-            map,
-            position: initialCenter,
-            gmpDraggable: !disabled,
-          });
-        } else if (LegacyMarker) {
-          marker = new LegacyMarker({
-            map,
-            position: initialCenter,
-            draggable: !disabled,
-          });
-        } else {
-          throw new Error('No marker implementation available');
-        }
-      } catch (err) {
-        console.warn('AdvancedMarker failed, falling back:', err);
-        if (LegacyMarker) {
-          marker = new LegacyMarker({
-            map,
-            position: initialCenter,
-            draggable: !disabled,
-          });
-        } else {
-          setImportErr(err);
-          return;
-        }
-      }
-      markerRef.current = marker;
-      const isAdvancedMarker = !!AdvancedMarker && marker instanceof AdvancedMarker;
-
-      const setMarkerPos = ({ lat, lng }) => {
-        if (isAdvancedMarker) marker.position = { lat, lng };
-        else marker.setPosition({ lat, lng });
-      };
-      const getMarkerPos = () => {
-        if (isAdvancedMarker) {
-          const p = marker.position;
-          if (!p) return null;
-          return {
-            lat: typeof p.lat === 'function' ? p.lat() : p.lat,
-            lng: typeof p.lng === 'function' ? p.lng() : p.lng,
-          };
-        }
-        const p = marker.getPosition?.();
-        return p ? { lat: p.lat(), lng: p.lng() } : null;
-      };
-      // Expose for the gpsCoords effect below
-      markerRef.current.__setPos = setMarkerPos;
-
-      if (pos) onChange?.({ address, lat: pos.lat, lng: pos.lng });
-
-      marker.addListener('dragend', () => {
-        const p = getMarkerPos();
-        if (!p) return;
-        setPos(p);
-        reverseGeocode(p.lat, p.lng);
-      });
-
-      map.addListener('click', (e) => {
-        if (disabled) return;
-        const lat = e.latLng.lat();
-        const lng = e.latLng.lng();
-        setMarkerPos({ lat, lng });
-        setPos({ lat, lng });
-        reverseGeocode(lat, lng);
-      });
-
-      // Mount the new PlaceAutocompleteElement search box
-      if (PlaceAutoCtor && searchHostRef.current) {
-        const el = new PlaceAutoCtor();
-        el.style.width = '100%';
-        acElRef.current = el;
-        searchHostRef.current.replaceChildren(el);
-
-        const onSelect = async (event) => {
-          let place = null;
-          if (event?.placePrediction?.toPlace) {
-            place = event.placePrediction.toPlace();
-          } else if (event?.place) {
-            place = event.place;
-          }
-          if (!place) return;
-          try {
-            await place.fetchFields({
-              fields: ['formattedAddress', 'displayName', 'location'],
-            });
-          } catch (err) {
-            console.warn('Place.fetchFields failed:', err);
-            return;
-          }
-          const loc = place.location;
-          if (!loc) return;
-          const lat = loc.lat();
-          const lng = loc.lng();
-          const a = place.formattedAddress || place.displayName || '';
-          map.panTo({ lat, lng });
-          map.setZoom(16);
-          setMarkerPos({ lat, lng });
-          setPos({ lat, lng });
-          setAddress(a);
-          onChange?.({ address: a, lat, lng });
-        };
-
-        el.addEventListener('gmp-select', onSelect);
-        el.addEventListener('gmp-placeselect', onSelect);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready]);
-
-  // When useGeolocation resolves, jump the map there.
-  useEffect(() => {
-    if (!gpsCoords || !mapRef.current || !markerRef.current) return;
-    const { lat, lng } = gpsCoords;
-    mapRef.current.panTo({ lat, lng });
-    mapRef.current.setZoom(16);
-    markerRef.current.__setPos?.({ lat, lng });
-    setPos({ lat, lng });
-    reverseGeocode(lat, lng);
+    if (!gpsCoords) return;
+    handleLocationChange(gpsCoords.lat, gpsCoords.lng);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gpsCoords]);
 
-  const showError = error || importErr;
-  if (showError) {
-    return (
-      <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
-        <p className="font-medium">Map unavailable</p>
-        <p className="text-xs mt-0.5 opacity-90">{showError.message}</p>
-        <p className="text-xs mt-1.5 opacity-75">
-          If you just edited <code>frontend/.env</code>, restart <code>npm run dev</code> — Vite only reads env on startup.
-        </p>
-      </div>
-    );
-  }
+  // Search via Nominatim (debounced)
+  const handleSearchChange = (e) => {
+    const q = e.target.value;
+    setSearchQuery(q);
+    clearTimeout(searchTimeout.current);
+    if (q.trim().length < 3) {
+      setSearchResults([]);
+      return;
+    }
+    searchTimeout.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5&addressdetails=1`,
+          { headers: { 'Accept-Language': 'en' } }
+        );
+        const data = await res.json();
+        setSearchResults(data || []);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 400);
+  };
+
+  const handleSearchSelect = (result) => {
+    const lat = parseFloat(result.lat);
+    const lng = parseFloat(result.lon);
+    setSearchQuery(result.display_name);
+    setSearchResults([]);
+    setPos({ lat, lng });
+    setAddress(result.display_name);
+    onChange?.({ address: result.display_name, lat, lng });
+  };
 
   return (
     <div className="space-y-2">
       <div className="flex flex-col sm:flex-row gap-2 sm:items-stretch">
-        {/* Match the search box to our form-input look exactly. */}
-        <style>{`
-          .lp-search-host { flex: 1 1 0%; min-width: 0; }
-          .lp-search-host { position: relative; z-index: 2; }
-          .lp-search-host gmp-place-autocomplete {
-            display: block;
-            width: 100%;
-            height: 2.5rem;
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 0.375rem;
-            font: inherit;
-            font-size: 0.875rem;
-            color: #111827;
-            /* Force light theme so the suggestions dropdown stays white. */
-            color-scheme: light;
-            /* No overflow:hidden — clips the suggestions dropdown. */
-            transition: border-color 120ms ease, box-shadow 120ms ease;
-          }
-          .lp-search-host gmp-place-autocomplete:hover {
-            border-color: #d1d5db;
-          }
-          .lp-search-host gmp-place-autocomplete:focus-within {
-            border-color: #2563eb;
-            box-shadow: 0 0 0 2px rgba(37,99,235,0.20);
-            outline: none;
-          }
-          .lp-search-host gmp-place-autocomplete::part(input) {
-            width: 100%;
-            height: 100%;
-            padding: 0 0.75rem;
-            border: 0 !important;
-            outline: 0 !important;
-            background: transparent !important;
-            box-shadow: none !important;
-            font: inherit;
-            color: inherit;
-          }
-        `}</style>
-        <div ref={searchHostRef} className="lp-search-host" />
+        {/* Search input */}
+        <div className="relative flex-1 min-w-0">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={handleSearchChange}
+            placeholder="Search a place…"
+            disabled={disabled}
+            className="w-full h-10 px-3 bg-white border border-gray-200 rounded-md text-sm text-gray-900 placeholder:text-gray-400 transition focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 disabled:opacity-50"
+          />
+          {searchResults.length > 0 && (
+            <ul className="absolute z-[1000] w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
+              {searchResults.map((r, i) => (
+                <li key={i}>
+                  <button
+                    type="button"
+                    onClick={() => handleSearchSelect(r)}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-brand-blue transition truncate"
+                  >
+                    {r.display_name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {searching && (
+            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              <svg className="animate-spin h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+            </div>
+          )}
+        </div>
+
+        {/* Use my location button */}
         <button
           type="button"
           onClick={requestGps}
@@ -303,17 +188,27 @@ const LocationPicker = ({ value, onChange, disabled = false }) => {
         </button>
       </div>
 
-      <div
-        ref={mapDivRef}
-        className={`relative w-full h-64 sm:h-72 rounded-md overflow-hidden border border-gray-200 bg-gray-100 ${
-          !ready ? 'animate-pulse' : ''
-        }`}
-      >
-        {!ready && (
-          <div className="absolute inset-0 flex items-center justify-center text-xs text-gray-500">
-            Loading map…
-          </div>
-        )}
+      {/* Leaflet Map */}
+      <div className="relative w-full h-64 sm:h-72 rounded-md overflow-hidden border border-gray-200">
+        <MapContainer
+          center={pos ? [pos.lat, pos.lng] : DEFAULT_CENTER}
+          zoom={pos ? 16 : 13}
+          className="h-full w-full"
+          zoomControl={true}
+          attributionControl={true}
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          <Marker
+            position={[markerPos.lat, markerPos.lng]}
+            draggable={!disabled}
+            eventHandlers={{ dragend: handleMarkerDragEnd }}
+          />
+          <MapClickHandler disabled={disabled} onLocationChange={handleLocationChange} />
+          {pos && <RecenterMap lat={pos.lat} lng={pos.lng} zoom={16} />}
+        </MapContainer>
       </div>
 
       {address && (

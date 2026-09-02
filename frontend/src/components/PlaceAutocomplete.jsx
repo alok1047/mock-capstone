@@ -1,24 +1,17 @@
-import React, { useEffect, useRef, useState } from 'react';
-import useGoogleMaps from '../hooks/useGoogleMaps';
+import React, { useRef, useState } from 'react';
 import { getGeolocation } from '../hooks/useGeolocation';
 
 /**
- * Google Places autocomplete using the new `PlaceAutocompleteElement`
- * web component, with a built-in "Use my location" button so users can
- * skip typing whenever they want — this component is reused across the
- * lost-report form, the lost/found browser's "search a different area"
- * picker, and anywhere else a place is needed.
+ * Place autocomplete powered by Nominatim (OpenStreetMap) — completely free,
+ * no API key required.
  *
  * Emits `onChange({ address, lat, lng })`:
- *   - When the user picks a Google suggestion (`gmp-select` event)
- *   - When the user clicks "Use my location" (after reverse-geocoding the
- *     GPS coords into a human-readable address)
- *   - When the user types free text (so submitting without picking a
- *     suggestion still works)
+ *   - When the user picks a result from the dropdown
+ *   - When the user clicks "Use my location"
+ *   - When the user types free text (lat/lng will be null)
  *
- * The element is a self-contained custom element with its own shadow DOM —
- * we mount it inside a host div and dress that host so it visually matches
- * the rest of the form fields.
+ * Drop-in replacement for the old Google PlaceAutocompleteElement version —
+ * same prop interface, same event shape.
  */
 
 const PinIcon = () => (
@@ -49,132 +42,90 @@ const PlaceAutocomplete = ({
   className = '',
   showLocationButton = true,
 }) => {
-  const hostRef = useRef(null);
-  const elRef = useRef(null);
-  const { ready, error } = useGoogleMaps();
-  const [importErr, setImportErr] = useState(null);
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [searching, setSearching] = useState(false);
   const [locating, setLocating] = useState(false);
   const [locateErr, setLocateErr] = useState(null);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const searchTimeout = useRef(null);
+  const wrapperRef = useRef(null);
 
-  useEffect(() => {
-    if (!ready || !hostRef.current) return;
-    // Snapshot — by the time cleanup runs the ref may have moved on.
-    const host = hostRef.current;
-    let cancelled = false;
+  // Close dropdown when clicking outside
+  const handleBlur = (e) => {
+    // Small delay so click on result registers before closing
+    setTimeout(() => {
+      if (wrapperRef.current && !wrapperRef.current.contains(document.activeElement)) {
+        setShowDropdown(false);
+      }
+    }, 200);
+  };
 
-    (async () => {
-      let placesLib;
+  const handleInputChange = (e) => {
+    const q = e.target.value;
+    setQuery(q);
+
+    // Emit free-text so parent has something even without a pick
+    onChange?.({ address: q, lat: null, lng: null });
+
+    clearTimeout(searchTimeout.current);
+    if (q.trim().length < 3) {
+      setResults([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    searchTimeout.current = setTimeout(async () => {
+      setSearching(true);
       try {
-        placesLib = await window.google.maps.importLibrary('places');
-      } catch (e) {
-        if (!cancelled) setImportErr(e);
-        return;
-      }
-      if (cancelled) return;
-
-      const Ctor = placesLib.PlaceAutocompleteElement;
-      if (!Ctor) {
-        setImportErr(
-          new Error('PlaceAutocompleteElement is missing from the places library')
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5&addressdetails=1`,
+          { headers: { 'Accept-Language': 'en' } }
         );
-        return;
+        const data = await res.json();
+        setResults(data || []);
+        setShowDropdown(true);
+      } catch {
+        setResults([]);
+      } finally {
+        setSearching(false);
       }
+    }, 400);
+  };
 
-      const el = new Ctor();
-      if (id) el.id = id;
-      el.style.width = '100%';
-      elRef.current = el;
-      host.replaceChildren(el);
-
-      // Stable API: `gmp-select` with { placePrediction }.
-      // Beta API: `gmp-placeselect` with { place }. Listen to both.
-      const handleSelect = async (event) => {
-        let place = null;
-        if (event?.placePrediction?.toPlace) {
-          place = event.placePrediction.toPlace();
-        } else if (event?.place) {
-          place = event.place;
-        }
-        if (!place) return;
-        try {
-          await place.fetchFields({
-            fields: ['formattedAddress', 'displayName', 'location'],
-          });
-        } catch (e) {
-          console.warn('Place.fetchFields failed:', e);
-          return;
-        }
-        const address = place.formattedAddress || place.displayName || '';
-        const lat = place.location?.lat?.();
-        const lng = place.location?.lng?.();
-        onChange?.({ address, lat, lng });
-      };
-
-      // Free-text fallback: keep state in sync even when no suggestion is picked.
-      const handleInput = () => {
-        const v = el.value || '';
-        if (typeof v === 'string') {
-          onChange?.({ address: v, lat: null, lng: null });
-        }
-      };
-
-      el.addEventListener('gmp-select', handleSelect);
-      el.addEventListener('gmp-placeselect', handleSelect);
-      el.addEventListener('input', handleInput);
-      elRef.current.__cleanup = () => {
-        el.removeEventListener('gmp-select', handleSelect);
-        el.removeEventListener('gmp-placeselect', handleSelect);
-        el.removeEventListener('input', handleInput);
-      };
-    })();
-
-    return () => {
-      cancelled = true;
-      elRef.current?.__cleanup?.();
-      elRef.current = null;
-      host.replaceChildren();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready]);
-
-  // Disable interaction when the parent says so
-  useEffect(() => {
-    if (elRef.current) elRef.current.style.pointerEvents = disabled ? 'none' : '';
-  }, [disabled]);
+  const handleSelect = (result) => {
+    const lat = parseFloat(result.lat);
+    const lng = parseFloat(result.lon);
+    const address = result.display_name;
+    setQuery(address);
+    setResults([]);
+    setShowDropdown(false);
+    onChange?.({ address, lat, lng });
+  };
 
   const handleUseMyLocation = async () => {
     if (locating) return;
     setLocateErr(null);
     setLocating(true);
     try {
-      // Goes through the shared cache — instant when a recent fix exists.
       const { lat, lng } = await getGeolocation();
 
-      // Reverse-geocode to a human-readable address. Fall back to a
-      // "lat, lng" string if the geocoder is unavailable.
+      // Reverse-geocode via Nominatim
       let address = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
       try {
-        const geocodingLib = await window.google.maps.importLibrary('geocoding');
-        const Geocoder = geocodingLib.Geocoder || window.google.maps.Geocoder;
-        if (Geocoder) {
-          const geocoder = new Geocoder();
-          const { results } = await geocoder.geocode({ location: { lat, lng } });
-          if (results?.[0]?.formatted_address) {
-            address = results[0].formatted_address;
-          }
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+          { headers: { 'Accept-Language': 'en' } }
+        );
+        const data = await res.json();
+        if (data?.display_name) {
+          address = data.display_name;
         }
-      } catch (e) {
-        console.warn('Reverse geocode failed:', e);
+      } catch {
+        // keep fallback coords string
       }
 
-      // Reflect the new value in the autocomplete's own input field too.
-      if (elRef.current && 'value' in elRef.current) {
-        try {
-          elRef.current.value = address;
-        } catch {
-          /* ignore */
-        }
-      }
+      setQuery(address);
       onChange?.({ address, lat, lng });
     } catch (err) {
       if (err?.unsupported) {
@@ -195,67 +146,55 @@ const PlaceAutocomplete = ({
     }
   };
 
-  if (error) {
-    return (
-      <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-800">
-        <p className="font-medium">Maps unavailable</p>
-        <p className="text-xs mt-0.5 opacity-90">{error.message}</p>
-      </div>
-    );
-  }
-
   return (
-    <div className={className}>
+    <div className={className} ref={wrapperRef}>
       <div className="flex flex-col sm:flex-row gap-2 sm:items-stretch">
-        <div className="pae-host flex-1 min-w-0">
-          <style>{`
-            .pae-host { position: relative; z-index: 1; }
-            .pae-host gmp-place-autocomplete {
-              display: block;
-              width: 100%;
-              height: 2.5rem;
-              background: #ffffff;
-              border: 1px solid #e5e7eb;
-              border-radius: 0.375rem;
-              font: inherit;
-              font-size: 0.875rem;
-              color: #111827;
-              color-scheme: light;
-              transition: border-color 120ms ease, box-shadow 120ms ease;
-            }
-            .pae-host gmp-place-autocomplete:hover {
-              border-color: #d1d5db;
-            }
-            .pae-host gmp-place-autocomplete:focus-within {
-              border-color: #2563eb;
-              box-shadow: 0 0 0 2px rgba(37,99,235,0.20);
-              outline: none;
-            }
-            .pae-host gmp-place-autocomplete::part(input) {
-              width: 100%;
-              height: 100%;
-              padding: 0 0.75rem;
-              border: 0 !important;
-              outline: 0 !important;
-              background: transparent !important;
-              box-shadow: none !important;
-              font: inherit;
-              color: inherit;
-            }
-          `}</style>
-          <div ref={hostRef} />
-          {!ready && (
-            <div className="h-10 flex items-center px-3 bg-white border border-gray-200 rounded-md text-sm text-gray-400">
-              Loading places…
+        {/* Search input */}
+        <div className="relative flex-1 min-w-0">
+          <input
+            id={id}
+            type="text"
+            value={query}
+            onChange={handleInputChange}
+            onFocus={() => results.length > 0 && setShowDropdown(true)}
+            onBlur={handleBlur}
+            disabled={disabled}
+            placeholder="Search a place… e.g. Railway station Jaipur"
+            className="w-full h-10 px-3 bg-white border border-gray-200 rounded-md text-sm text-gray-900 placeholder:text-gray-400 transition focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 disabled:opacity-50"
+          />
+
+          {/* Dropdown */}
+          {showDropdown && results.length > 0 && (
+            <ul className="absolute z-[1000] w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
+              {results.map((r, i) => (
+                <li key={i}>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()} // prevent blur before click
+                    onClick={() => handleSelect(r)}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-brand-blue transition truncate"
+                  >
+                    {r.display_name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {/* Spinner */}
+          {searching && (
+            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              <Spinner />
             </div>
           )}
         </div>
 
+        {/* Use my location */}
         {showLocationButton && (
           <button
             type="button"
             onClick={handleUseMyLocation}
-            disabled={disabled || locating || !ready}
+            disabled={disabled || locating}
             className="inline-flex shrink-0 items-center justify-center gap-2 h-10 px-3 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-md hover:bg-gray-50 transition disabled:opacity-50"
           >
             {locating ? <Spinner /> : <PinIcon />}
@@ -264,9 +203,6 @@ const PlaceAutocomplete = ({
         )}
       </div>
 
-      {importErr && (
-        <p className="mt-1.5 text-xs text-rose-700">{importErr.message}</p>
-      )}
       {locateErr && (
         <p className="mt-1.5 text-xs text-rose-700">{locateErr}</p>
       )}

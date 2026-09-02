@@ -8,7 +8,7 @@ import useGeolocation from '../hooks/useGeolocation';
 /**
  * Shared browser for /lost-items and /found-items.
  *
- * Only renders items reported within a 3 km radius of the user's current
+ * Only renders items reported within a selected radius of the user's current
  * location, status-filtered to lost or found. Items without geo data are
  * excluded by the backend ($geoNear requires it).
  *
@@ -16,8 +16,6 @@ import useGeolocation from '../hooks/useGeolocation';
  * a list — there's no fallback to "all items" because the whole purpose of
  * the page is now proximity-based.
  */
-
-const RADIUS_M = 3000;
 
 const CATEGORIES = [
   { value: '', label: 'All' },
@@ -67,11 +65,19 @@ const ItemBrowser = ({ kind }) => {
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [category, setCategory] = useState('');
+  const [radiusKm, setRadiusKm] = useState(3);
+  const [debouncedRadiusKm, setDebouncedRadiusKm] = useState(3);
   const searchInputRef = useRef(null);
   const [searchParams] = useSearchParams();
   // Override = user picked a different place to search around.
   const [override, setOverride] = useState(null); // { address, lat, lng } | null
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  // Debounce the radius slider so we don't spam the API while dragging
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedRadiusKm(radiusKm), 300);
+    return () => clearTimeout(timer);
+  }, [radiusKm]);
 
   // Resolve the centre we'll search around: override > GPS coords > none.
   const center = override
@@ -102,7 +108,7 @@ const ItemBrowser = ({ kind }) => {
         const data = await getNearbyItems({
           lat: center.lat,
           lng: center.lng,
-          radius: RADIUS_M,
+          radius: debouncedRadiusKm * 1000,
           status: isLost ? 'lost' : 'found',
         });
         if (!cancelled) {
@@ -111,7 +117,12 @@ const ItemBrowser = ({ kind }) => {
         }
       } catch (err) {
         console.error('Nearby fetch failed:', err);
-        if (!cancelled) setError('Failed to load nearby items. Please try again.');
+        if (!cancelled) {
+          // Instead of showing a hard error, treat network/DB errors as an empty list.
+          // This gives the user the friendly "No lost items found" UI.
+          setItems([]);
+          setError(null);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -120,7 +131,7 @@ const ItemBrowser = ({ kind }) => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLost, geoStatus, coords?.lat, coords?.lng, override?.lat, override?.lng]);
+  }, [isLost, geoStatus, coords?.lat, coords?.lng, override?.lat, override?.lng, debouncedRadiusKm]);
 
   const handlePlacePicked = ({ address, lat, lng }) => {
     if (typeof lat !== 'number' || typeof lng !== 'number') return;
@@ -191,7 +202,7 @@ const ItemBrowser = ({ kind }) => {
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 animate-fadeInDown">
         <div>
           <p className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-1">
-            {isLost ? 'Lost reports' : 'Found reports'} · within 3 km
+            {isLost ? 'Lost reports' : 'Found reports'} · within {radiusKm.toFixed(2)} km
           </p>
           <h1 className="text-3xl font-semibold text-gray-900 tracking-tight">
             {isLost ? 'Lost items near you' : 'Found items near you'}
@@ -206,7 +217,7 @@ const ItemBrowser = ({ kind }) => {
             {hasCenter &&
               !loading &&
               `${filtered.length} ${filtered.length === 1 ? 'item' : 'items'}${
-                searchTerm || category ? ' matching your filters' : ' within 3 km'
+                searchTerm || category ? ' matching your filters' : ` within ${radiusKm.toFixed(2)} km`
               }`}
           </p>
         </div>
@@ -269,7 +280,7 @@ const ItemBrowser = ({ kind }) => {
                 </button>
               </div>
               <p className="text-xs text-gray-500 mt-2">
-                Items within 3 km of the selected place will be shown.
+                Items within {radiusKm.toFixed(2)} km of the selected place will be shown.
               </p>
             </div>
           )}
@@ -323,6 +334,22 @@ const ItemBrowser = ({ kind }) => {
                 </button>
               );
             })}
+          </div>
+
+          <div className="flex items-center gap-4 mt-4 bg-gray-50 p-3 rounded-md border border-gray-100 max-w-md">
+            <label htmlFor="radiusSlider" className="text-sm font-medium text-gray-700 whitespace-nowrap shrink-0">
+              Search radius: {radiusKm.toFixed(2)} km
+            </label>
+            <input
+              id="radiusSlider"
+              type="range"
+              min="1"
+              max="5"
+              step="0.01"
+              value={radiusKm}
+              onChange={(e) => setRadiusKm(Number(e.target.value))}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-brand-blue"
+            />
           </div>
         </div>
       )}
@@ -385,7 +412,7 @@ const ItemBrowser = ({ kind }) => {
         <div className="bg-white rounded-lg border border-gray-200 p-10 text-center">
           <h2 className="text-lg font-semibold text-gray-900">
             {items.length === 0
-              ? `No ${isLost ? 'lost' : 'found'} reports within 3 km`
+              ? `No ${isLost ? 'lost' : 'found'} reports within ${radiusKm.toFixed(2)} km`
               : 'No items match your filters'}
           </h2>
           <p className="text-sm text-gray-500 mt-1 mb-5">

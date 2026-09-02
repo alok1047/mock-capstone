@@ -2,7 +2,7 @@ import React from 'react';
 import { Routes, Route, Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
-import AiAssistant from '../components/AiAssistant';
+
 import Home from '../pages/Home';
 import Login from '../pages/Login';
 import Signup from '../pages/Signup';
@@ -18,6 +18,7 @@ import ReportFound from '../pages/ReportFound';
 import Dashboard from '../pages/Dashboard';
 import SearchItems from '../pages/SearchItems';
 import ItemDetail from '../pages/ItemDetail';
+import NotFound from '../pages/NotFound';
 
 // Choice screen for reporting an item — picks between Lost and Found.
 const LostIllustration = () => (
@@ -95,7 +96,7 @@ const ReportItem = () => (
     </div>
   </div>
 );
-const NotFound = () => <div className="p-6 bg-white rounded shadow text-center"><h1 className="text-xl font-bold text-red-600">404 - Page Not Found</h1></div>;
+
 
 // --- Layout Component Definition ---
 const MainLayout = ({ children }) => (
@@ -105,7 +106,7 @@ const MainLayout = ({ children }) => (
         {children}
     </main>
     <Footer />
-    <AiAssistant />
+
   </div>
 );
 

@@ -54,7 +54,7 @@ body {
   }
 
   .gradient-text {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-brand-blue via-blue-500 to-brand-teal;
+    @apply text-brand-blue;
   }
 }
 
