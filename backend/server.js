@@ -18,7 +18,6 @@ const passport = require('./config/passport');
 
 const authRoutes = require('./routes/authRoutes');
 const itemRoutes = require('./routes/itemRoutes');
-const aiRoutes = require('./routes/aiRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 
 // ---- Env sanity check (warn-only, never exit) ----
@@ -31,7 +30,6 @@ const OPTIONAL_ENV = [
   'CLOUDINARY_CLOUD_NAME',
   'CLOUDINARY_API_KEY',
   'CLOUDINARY_API_SECRET',
-  'GEMINI_API_KEY',
 ];
 const missingRequired = REQUIRED_ENV.filter((k) => !process.env[k]);
 const missingOptional = OPTIONAL_ENV.filter((k) => !process.env[k]);
@@ -101,7 +99,6 @@ app.get('/health', (_req, res) =>
 
 app.use('/api/auth', authRoutes);
 app.use('/api/items', itemRoutes);
-app.use('/api/ai', aiRoutes);
 app.use('/api/reviews', reviewRoutes);
 
 // ---- 404 + Error handler (keep last) ----
